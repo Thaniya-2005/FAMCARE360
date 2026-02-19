@@ -2,87 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* FamCare360 Design System — Warm Teal & Coral */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Backgrounds */
+    --background: 210 30% 97%;
+    --foreground: 215 40% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 40% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 40% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary — Teal Blue */
+    --primary: 187 60% 38%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary — Soft Blue */
+    --secondary: 210 40% 92%;
+    --secondary-foreground: 215 40% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted */
+    --muted: 210 30% 94%;
+    --muted-foreground: 215 20% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent — Warm Coral */
+    --accent: 15 80% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive / SOS */
+    --destructive: 0 78% 54%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Status Colors */
+    --status-green: 142 65% 40%;
+    --status-green-bg: 142 65% 95%;
+    --status-yellow: 42 90% 48%;
+    --status-yellow-bg: 42 90% 95%;
+    --status-red: 0 75% 55%;
+    --status-red-bg: 0 75% 96%;
 
-    --radius: 0.5rem;
+    /* Gradient tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(187 60% 38%), hsl(199 70% 50%));
+    --gradient-card: linear-gradient(160deg, hsl(0 0% 100%), hsl(210 30% 97%));
+    --gradient-parent: linear-gradient(135deg, hsl(187 55% 42%), hsl(187 60% 55%));
+    --gradient-child: linear-gradient(135deg, hsl(225 60% 55%), hsl(262 50% 60%));
+    --gradient-sos: linear-gradient(135deg, hsl(0 78% 54%), hsl(15 80% 60%));
+
+    /* Shadows */
+    --shadow-card: 0 4px 24px -4px hsl(187 60% 38% / 0.12);
+    --shadow-hover: 0 8px 32px -4px hsl(187 60% 38% / 0.2);
+    --shadow-sos: 0 8px 32px -4px hsl(0 78% 54% / 0.4);
+
+    --border: 210 30% 88%;
+    --input: 210 30% 88%;
+    --ring: 187 60% 38%;
+
+    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 215 30% 10%;
+    --foreground: 210 40% 95%;
+    --card: 215 30% 13%;
+    --card-foreground: 210 40% 95%;
+    --popover: 215 30% 13%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 187 55% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 30% 18%;
+    --secondary-foreground: 210 40% 90%;
+    --muted: 215 30% 16%;
+    --muted-foreground: 215 20% 60%;
+    --accent: 15 75% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 30% 22%;
+    --input: 215 30% 22%;
+    --ring: 187 55% 50%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -98,8 +107,47 @@ All colors MUST be HSL.
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .gradient-parent {
+    background: var(--gradient-parent);
+  }
+  .gradient-child {
+    background: var(--gradient-child);
+  }
+  .gradient-sos {
+    background: var(--gradient-sos);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-hover {
+    box-shadow: var(--shadow-hover);
+  }
+  .shadow-sos {
+    box-shadow: var(--shadow-sos);
+  }
+  .status-green {
+    background-color: hsl(var(--status-green-bg));
+    color: hsl(var(--status-green));
+    border-color: hsl(var(--status-green) / 0.3);
+  }
+  .status-yellow {
+    background-color: hsl(var(--status-yellow-bg));
+    color: hsl(var(--status-yellow));
+    border-color: hsl(var(--status-yellow) / 0.3);
+  }
+  .status-red {
+    background-color: hsl(var(--status-red-bg));
+    color: hsl(var(--status-red));
+    border-color: hsl(var(--status-red) / 0.3);
   }
 }
