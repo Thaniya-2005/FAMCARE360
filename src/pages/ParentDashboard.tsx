@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, ArrowLeft, Smile, Droplets, Moon, Zap, Pill, Shield, MessageCircle, AlertTriangle } from "lucide-react";
+import { Heart, ArrowLeft, Smile, Droplets, Moon, Zap, Pill, Shield, MessageCircle, AlertTriangle, Footprints, Thermometer, Activity } from "lucide-react";
 import { HealthData, getDefaultHealthData } from "@/types/health";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,14 +34,14 @@ function ScoreRow({ label, value, onChange, min = 1, max = 5, lowLabel, highLabe
   label: string; value: number; onChange: (v: number) => void;
   min?: number; max?: number; lowLabel?: string; highLabel?: string;
 }) {
-  const emojis = max === 5 ? ["😟", "😕", "😐", "🙂", "😊"] : [];
+  const emojis = max === 5 && min === 1 ? ["😟", "😕", "😐", "🙂", "😊"] : [];
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <label className="text-sm font-medium text-foreground">{label}</label>
         <div className="flex items-center gap-1.5">
           {emojis[value - 1] && <span className="text-lg">{emojis[value - 1]}</span>}
-          <span className="text-sm font-bold text-primary w-4">{value}</span>
+          <span className="text-sm font-bold text-primary w-8 text-right">{value}</span>
         </div>
       </div>
       <Slider
@@ -69,6 +69,29 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
       >
         <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all duration-200 shadow ${value ? "left-6" : "left-0.5"}`} />
       </button>
+    </div>
+  );
+}
+
+function NumberInput({ label, value, onChange, unit, placeholder }: {
+  label: string; value: number | string; onChange: (v: string) => void;
+  unit?: string; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-foreground mb-1 block">{label}</label>
+      <div className="relative">
+        <Input
+          type="number"
+          placeholder={placeholder ?? "0"}
+          value={value === 0 ? "" : value}
+          onChange={e => onChange(e.target.value)}
+          className="text-sm pr-12"
+        />
+        {unit && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">{unit}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -171,7 +194,56 @@ const ParentDashboard = () => {
       {/* Sections */}
       <div className="max-w-xl mx-auto px-4 mt-5 space-y-4">
 
-        {/* 1. Mental & Emotional */}
+        {/* 1. Vital Signs — NEW */}
+        <Section icon={<Activity className="w-5 h-5 text-white" />} title="Vital Signs" color="bg-cyan-500">
+          <div className="grid grid-cols-2 gap-3">
+            <NumberInput
+              label="Heart Rate"
+              value={data.heartRate}
+              onChange={v => update("heartRate", parseFloat(v) || 0)}
+              unit="bpm"
+              placeholder="72"
+            />
+            <NumberInput
+              label="Temperature"
+              value={data.temperature}
+              onChange={v => update("temperature", parseFloat(v) || 0)}
+              unit="°F"
+              placeholder="98.6"
+            />
+          </div>
+          <NumberInput
+            label="Step Count Today"
+            value={data.stepsCount}
+            onChange={v => update("stepsCount", parseInt(v) || 0)}
+            unit="steps"
+            placeholder="0"
+          />
+          {/* Step progress ring visual */}
+          <div className="flex items-center gap-4 bg-muted/30 rounded-xl p-3">
+            <div className="relative w-16 h-16 flex-shrink-0">
+              <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke="hsl(var(--primary))" strokeWidth="3"
+                  strokeDasharray={`${Math.min((data.stepsCount / 8000) * 100, 100)} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Footprints className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-foreground">{data.stepsCount.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">steps · Goal: 8,000</div>
+              <div className="text-xs text-primary font-medium mt-0.5">{Math.round((data.stepsCount / 8000) * 100)}% of goal</div>
+            </div>
+          </div>
+        </Section>
+
+        {/* 2. Mental & Emotional */}
         <Section icon={<Smile className="w-5 h-5 text-white" />} title="Mental & Emotional Well-being" color="bg-violet-400">
           <ScoreRow label="How is your mood today?" value={data.moodScore} onChange={v => update("moodScore", v)} lowLabel="Very sad" highLabel="Very happy" />
           <ScoreRow label="Stress level" value={data.stressLevel} onChange={v => update("stressLevel", v)} lowLabel="Very calm" highLabel="Very stressed" />
@@ -186,58 +258,103 @@ const ParentDashboard = () => {
           </div>
         </Section>
 
-        {/* 2. Food & Hydration */}
+        {/* 3. Food & Hydration */}
         <Section icon={<Droplets className="w-5 h-5 text-white" />} title="Food & Hydration" color="bg-sky-400">
           <ScoreRow label="Meals eaten today" value={data.mealsEaten} onChange={v => update("mealsEaten", v)} min={0} max={3} lowLabel="None" highLabel="All 3" />
           <ScoreRow label="Water intake (cups)" value={data.waterIntake} onChange={v => update("waterIntake", v)} min={0} max={12} lowLabel="0 cups" highLabel="12+ cups" />
           <Toggle label="Appetite feels good today?" value={data.appetiteGood} onChange={v => update("appetiteGood", v)} />
+          <ScoreRow label="Diet Habits Score" value={data.dietHabitsScore} onChange={v => update("dietHabitsScore", v)} min={0} max={100} lowLabel="Poor diet" highLabel="Excellent diet" />
         </Section>
 
-        {/* 3. Sleep & Rest */}
+        {/* 4. Sleep & Rest */}
         <Section icon={<Moon className="w-5 h-5 text-white" />} title="Sleep & Rest" color="bg-indigo-400">
-          <ScoreRow label="Hours of sleep last night" value={data.sleepHours} onChange={v => update("sleepHours", v)} min={0} max={12} lowLabel="0 hrs" highLabel="12 hrs" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Bedtime</label>
+              <Input
+                placeholder="e.g. 10:30 PM"
+                value={data.sleepInBedTime}
+                onChange={e => update("sleepInBedTime", e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <NumberInput
+              label="Total Sleep"
+              value={data.sleepHours}
+              onChange={v => update("sleepHours", parseFloat(v) || 0)}
+              unit="hrs"
+              placeholder="7"
+            />
+          </div>
           <ScoreRow label="Sleep quality" value={data.sleepQuality} onChange={v => update("sleepQuality", v)} lowLabel="Very poor" highLabel="Excellent" />
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sleep Breakdown</div>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberInput label="Deep Sleep" value={data.deepSleepHours} onChange={v => update("deepSleepHours", parseFloat(v) || 0)} unit="hrs" placeholder="2" />
+            <NumberInput label="Light Sleep" value={data.lightSleepHours} onChange={v => update("lightSleepHours", parseFloat(v) || 0)} unit="hrs" placeholder="3" />
+            <NumberInput label="REM Sleep" value={data.remSleepHours} onChange={v => update("remSleepHours", parseFloat(v) || 0)} unit="hrs" placeholder="1.5" />
+            <NumberInput label="Awake (mins)" value={data.awakeDuringNight} onChange={v => update("awakeDuringNight", parseInt(v) || 0)} unit="min" placeholder="30" />
+          </div>
           <Toggle label="Had a nap during the day?" value={data.hadNap} onChange={v => update("hadNap", v)} />
         </Section>
 
-        {/* 4. Physical Activity */}
+        {/* 5. Physical Activity */}
         <Section icon={<Zap className="w-5 h-5 text-white" />} title="Physical Activity & Comfort" color="bg-amber-400">
           <ScoreRow label="Mobility level" value={data.mobilityLevel} onChange={v => update("mobilityLevel", v)} lowLabel="Cannot move" highLabel="Fully mobile" />
           <ScoreRow label="Pain or discomfort level" value={data.painLevel} onChange={v => update("painLevel", v)} min={0} max={5} lowLabel="No pain" highLabel="Severe pain" />
-          <ScoreRow label="Exercise / walk (minutes)" value={data.exerciseMinutes} onChange={v => update("exerciseMinutes", v)} min={0} max={60} lowLabel="0 min" highLabel="60+ min" />
+          <NumberInput
+            label="Exercise / Walk Duration"
+            value={data.exerciseMinutes}
+            onChange={v => update("exerciseMinutes", parseInt(v) || 0)}
+            unit="min"
+            placeholder="0"
+          />
         </Section>
 
-        {/* 5. Medicines & Monitoring */}
+        {/* 6. Medicines & Monitoring */}
         <Section icon={<Pill className="w-5 h-5 text-white" />} title="Medicines & Health Monitoring" color="bg-emerald-400">
           <Toggle label="Took all medications today?" value={data.medicationTaken} onChange={v => update("medicationTaken", v)} />
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1 block">Blood Pressure Reading</label>
-            <Input
-              placeholder="e.g. 120/80"
-              value={data.bloodPressure}
-              onChange={e => update("bloodPressure", e.target.value)}
-              className="text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1 block">Blood Sugar Level</label>
-            <Input
-              placeholder="e.g. 100 mg/dL"
-              value={data.bloodSugar}
-              onChange={e => update("bloodSugar", e.target.value)}
-              className="text-sm"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Blood Pressure</label>
+              <Input placeholder="120/80 mmHg" value={data.bloodPressure} onChange={e => update("bloodPressure", e.target.value)} className="text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Blood Sugar</label>
+              <Input placeholder="100 mg/dL" value={data.bloodSugar} onChange={e => update("bloodSugar", e.target.value)} className="text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Cholesterol</label>
+              <Input placeholder="200 mg/dL" value={data.cholesterol} onChange={e => update("cholesterol", e.target.value)} className="text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Diabetes (Glucose)</label>
+              <Input placeholder="90 mg/dL" value={data.diabetesReading} onChange={e => update("diabetesReading", e.target.value)} className="text-sm" />
+            </div>
           </div>
         </Section>
 
-        {/* 6. Overall Safety */}
+        {/* 7. Lifestyle Score */}
+        <Section icon={<Thermometer className="w-5 h-5 text-white" />} title="Lifestyle Score" color="bg-fuchsia-500">
+          <ScoreRow label="Overall Diet & Lifestyle Rating" value={data.lifestyleScore} onChange={v => update("lifestyleScore", v)} min={0} max={100} lowLabel="Needs improvement" highLabel="Excellent" />
+          <div className="bg-muted/30 rounded-xl p-3 flex items-center gap-3">
+            <div className="text-4xl font-bold text-primary">{data.lifestyleScore}</div>
+            <div>
+              <div className="text-xs font-semibold text-foreground">Lifestyle Score</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {data.lifestyleScore >= 80 ? "🌟 Excellent lifestyle!" : data.lifestyleScore >= 60 ? "👍 Good, keep it up!" : data.lifestyleScore >= 40 ? "⚠️ Room for improvement" : "🔴 Needs attention"}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* 8. Overall Safety */}
         <Section icon={<Shield className="w-5 h-5 text-white" />} title="Overall Health & Safety" color="bg-rose-400">
           <Toggle label="Feeling safe at home?" value={data.feltSafe} onChange={v => update("feltSafe", v)} />
           <Toggle label="Had a fall today?" value={data.hadFall} onChange={v => update("hadFall", v)} />
           <Toggle label="Need help with anything?" value={data.needsHelp} onChange={v => update("needsHelp", v)} />
         </Section>
 
-        {/* 7. Bonding Message */}
+        {/* 9. Bonding Message */}
         <Section icon={<MessageCircle className="w-5 h-5 text-white" />} title="Daily Message to Family 💙" color="bg-pink-400">
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">Share a message with your child today</label>
