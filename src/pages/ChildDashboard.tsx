@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Heart, ArrowLeft, RefreshCw, Smile, Droplets, Moon, Zap, Pill, Shield,
   MessageCircle, AlertTriangle, TrendingUp, Activity, Footprints, Thermometer,
-  Lightbulb, BarChart2
+  Lightbulb, BarChart2, Calendar, Users, Clock, MapPin
 } from "lucide-react";
 import { HealthData, HealthStatus, calculateHealthStatus, calculateLifestyleScore, HEALTH_TIPS } from "@/types/health";
 
@@ -80,8 +80,7 @@ function painLabel(v: number) {
   return "Severe";
 }
 
-// Mini bar chart for weekly trend
-function WeeklyBar({ values, label, color }: { values: number[]; label: string; color: string; max?: number }) {
+function WeeklyBar({ values, label, color }: { values: number[]; label: string; color: string }) {
   const max = Math.max(...values, 1);
   const days = ["M", "T", "W", "T", "F", "S", "Today"];
   return (
@@ -102,7 +101,7 @@ function WeeklyBar({ values, label, color }: { values: number[]; label: string; 
   );
 }
 
-type TabKey = "overview" | "trends" | "tips";
+type TabKey = "overview" | "wellness" | "medications" | "appointments" | "trends" | "tips";
 
 const ChildDashboard = () => {
   const navigate = useNavigate();
@@ -128,6 +127,8 @@ const ChildDashboard = () => {
   if (data) {
     if (data.moodScore <= 2) riskAlerts.push("Low mood detected");
     if (data.stressLevel >= 4) riskAlerts.push("High stress levels");
+    if (data.anxietyLevel >= 4) riskAlerts.push("High anxiety");
+    if (data.feelingLonely) riskAlerts.push("Feeling lonely");
     if (data.mealsEaten <= 1) riskAlerts.push("Missed meals");
     if (data.waterIntake < 4) riskAlerts.push("Low water intake");
     if (data.sleepHours < 5) riskAlerts.push("Insufficient sleep");
@@ -135,12 +136,12 @@ const ChildDashboard = () => {
     if (!data.medicationTaken) riskAlerts.push("Medication not taken");
     if (data.hadFall) riskAlerts.push("⚠️ Fall occurred today");
     if (data.needsHelp) riskAlerts.push("Needs assistance");
+    if (data.homeHazards) riskAlerts.push("Home hazards noticed");
     if (data.heartRate > 100 || data.heartRate < 50) riskAlerts.push("Abnormal heart rate");
     if (data.temperature > 99.5) riskAlerts.push("Elevated temperature");
     if (data.stepsCount < 1000) riskAlerts.push("Very low step count");
   }
 
-  // Simulated weekly data based on today's values
   const moodWeek = data ? [3, 4, 2, 4, 5, data.moodScore, data.moodScore] : [3, 4, 2, 4, 5, 3, 3];
   const stepsWeek = data ? [4200, 6500, 3000, 7200, 5500, data.stepsCount, data.stepsCount] : [4200, 6500, 3000, 7200, 5500, 0, 0];
   const sleepWeek = data ? [6, 7, 5, 8, 7, data.sleepHours, data.sleepHours] : [6, 7, 5, 8, 7, 7, 7];
@@ -148,8 +149,11 @@ const ChildDashboard = () => {
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "Overview", icon: <Activity className="w-3.5 h-3.5" /> },
-    { key: "trends", label: "Weekly Trends", icon: <BarChart2 className="w-3.5 h-3.5" /> },
-    { key: "tips", label: "Health Tips", icon: <Lightbulb className="w-3.5 h-3.5" /> },
+    { key: "wellness", label: "Wellness", icon: <Smile className="w-3.5 h-3.5" /> },
+    { key: "medications", label: "Meds", icon: <Pill className="w-3.5 h-3.5" /> },
+    { key: "appointments", label: "Appts", icon: <Calendar className="w-3.5 h-3.5" /> },
+    { key: "trends", label: "Trends", icon: <BarChart2 className="w-3.5 h-3.5" /> },
+    { key: "tips", label: "Tips", icon: <Lightbulb className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -180,7 +184,6 @@ const ChildDashboard = () => {
 
       <div className="max-w-xl mx-auto px-4 -mt-4 space-y-4">
 
-        {/* No data */}
         {!data && (
           <div className="bg-card rounded-2xl p-8 shadow-card border border-border text-center">
             <div className="text-4xl mb-3">📭</div>
@@ -229,7 +232,6 @@ const ChildDashboard = () => {
               <p className="text-xs text-muted-foreground">
                 Last updated: {new Date(data.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Refreshed {refreshTime.toLocaleTimeString()}
               </p>
-              {/* Lifestyle Score */}
               <div className="mt-3 flex items-center gap-4">
                 <div className="flex-1 bg-muted/40 rounded-xl p-3">
                   <div className="text-xs text-muted-foreground font-medium mb-1">Lifestyle Score</div>
@@ -254,13 +256,28 @@ const ChildDashboard = () => {
               </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="bg-card rounded-2xl p-1.5 shadow-card border border-border flex gap-1">
+            {/* Quick Stats Row */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { emoji: data.medicationTaken ? "✅" : "❌", label: "Meds", warn: !data.medicationTaken },
+                { emoji: ["😟","😕","😐","🙂","😊"][data.moodScore-1], label: `Mood ${data.moodScore}/5`, warn: data.moodScore <= 2 },
+                { emoji: "😴", label: `${data.sleepHours}h sleep`, warn: data.sleepHours < 5 },
+                { emoji: "🚶", label: `${(data.stepsCount/1000).toFixed(1)}k steps`, warn: data.stepsCount < 1000 },
+              ].map((s, i) => (
+                <div key={i} className={`rounded-xl p-2.5 text-center border ${s.warn ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>
+                  <div className="text-xl">{s.emoji}</div>
+                  <div className={`text-[10px] font-medium mt-0.5 ${s.warn ? "text-destructive" : "text-muted-foreground"}`}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tab Navigation — scrollable */}
+            <div className="bg-card rounded-2xl p-1.5 shadow-card border border-border flex gap-1 overflow-x-auto">
               {tabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  className={`flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                     activeTab === tab.key
                       ? "gradient-child text-white shadow"
                       : "text-muted-foreground hover:text-foreground"
@@ -275,43 +292,23 @@ const ChildDashboard = () => {
             {/* ============ OVERVIEW TAB ============ */}
             {activeTab === "overview" && (
               <>
-                {/* Vital Signs — NEW */}
+                {/* Vitals */}
                 <SectionCard
                   icon={<Activity className="w-5 h-5 text-white" />}
                   title="Vital Signs"
                   iconBg="bg-cyan-500"
-                  status={
-                    data.heartRate > 100 || data.heartRate < 50 || data.temperature > 99.5
-                      ? "critical"
-                      : data.stepsCount < 2000
-                      ? "moderate"
-                      : "stable"
-                  }
+                  status={data.heartRate > 100 || data.heartRate < 50 || data.temperature > 99.5 ? "critical" : data.stepsCount < 2000 ? "moderate" : "stable"}
                 >
-                  <MetricCard
-                    icon={<Heart className="w-4 h-4 text-destructive" />}
-                    label="Heart Rate"
-                    value={`${data.heartRate} bpm`}
-                    warning={data.heartRate > 100 || data.heartRate < 50}
-                    note={data.heartRate > 100 ? "Above normal" : data.heartRate < 50 ? "Below normal" : "Normal range"}
-                  />
-                  <MetricCard
-                    icon={<Thermometer className="w-4 h-4 text-accent" />}
-                    label="Temperature"
-                    value={`${data.temperature}°F`}
-                    warning={data.temperature > 99.5 || data.temperature < 97}
-                    note={data.temperature > 99.5 ? "Elevated" : "Normal"}
-                  />
+                  <MetricCard icon={<Heart className="w-4 h-4 text-destructive" />} label="Heart Rate" value={`${data.heartRate} bpm`} warning={data.heartRate > 100 || data.heartRate < 50} note={data.heartRate > 100 ? "Above normal" : data.heartRate < 50 ? "Below normal" : "Normal range"} />
+                  <MetricCard icon={<Thermometer className="w-4 h-4 text-accent" />} label="Temperature" value={`${data.temperature}°F`} warning={data.temperature > 99.5 || data.temperature < 97} note={data.temperature > 99.5 ? "Elevated" : "Normal"} />
+                  <MetricCard icon={<MapPin className="w-4 h-4 text-primary" />} label="Distance" value={`${data.distanceKm ?? 0} km`} />
+                  <MetricCard icon={<Activity className="w-4 h-4 text-amber-500" />} label="Active Calories" value={`${data.activeCalories ?? 0} kcal`} />
                   <div className="col-span-2 bg-muted/30 rounded-xl p-3 flex items-center gap-4">
                     <div className="relative w-14 h-14 flex-shrink-0">
                       <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90">
                         <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
-                        <circle
-                          cx="18" cy="18" r="15.9" fill="none"
-                          stroke="hsl(var(--primary))" strokeWidth="3"
-                          strokeDasharray={`${Math.min((data.stepsCount / 8000) * 100, 100)} 100`}
-                          strokeLinecap="round"
-                        />
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--primary))" strokeWidth="3"
+                          strokeDasharray={`${Math.min((data.stepsCount / 8000) * 100, 100)} 100`} strokeLinecap="round" />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
                         <Footprints className="w-4 h-4 text-primary" />
@@ -342,15 +339,39 @@ const ChildDashboard = () => {
                   </div>
                 )}
 
+                {/* Caregiver Notes */}
+                {data.caregiverNotes && (
+                  <div className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-3 items-start">
+                    <Users className="w-5 h-5 text-teal-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-semibold text-foreground mb-1">Notes for Family</div>
+                      <p className="text-sm text-muted-foreground">{data.caregiverNotes}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Safety */}
+                <SectionCard icon={<Shield className="w-5 h-5 text-white" />} title="Overall Safety" iconBg="bg-rose-400" status={data.hadFall || !data.feltSafe ? "critical" : data.needsHelp || data.homeHazards ? "moderate" : "stable"}>
+                  <MetricCard icon={<span className="text-lg">{data.feltSafe ? "🏠" : "⚠️"}</span>} label="Feeling safe" value={data.feltSafe ? "Yes" : "No"} warning={!data.feltSafe} />
+                  <MetricCard icon={<span className="text-lg">{data.hadFall ? "🚨" : "✅"}</span>} label="Had a fall" value={data.hadFall ? "YES - FELL" : "No fall"} warning={data.hadFall} />
+                  <MetricCard icon={<span className="text-lg">{data.needsHelp ? "🙏" : "✅"}</span>} label="Needs help" value={data.needsHelp ? "Yes" : "No"} warning={data.needsHelp} />
+                  <MetricCard icon={<span className="text-lg">{data.homeHazards ? "⚠️" : "✅"}</span>} label="Home hazards" value={data.homeHazards ? "Reported" : "None"} warning={data.homeHazards} />
+                  <MetricCard icon={<span className="text-lg">{data.usedWalkingAid ? "🦯" : "🚶"}</span>} label="Walking aid" value={data.usedWalkingAid ? "Used" : "Not needed"} />
+                </SectionCard>
+              </>
+            )}
+
+            {/* ============ WELLNESS TAB ============ */}
+            {activeTab === "wellness" && (
+              <>
                 {/* Mental & Emotional */}
-                <SectionCard
-                  icon={<Smile className="w-5 h-5 text-white" />}
-                  title="Mental & Emotional Well-being"
-                  iconBg="bg-violet-400"
-                  status={data.moodScore <= 2 || data.stressLevel >= 4 ? (data.moodScore === 1 || data.stressLevel === 5 ? "critical" : "moderate") : "stable"}
-                >
+                <SectionCard icon={<Smile className="w-5 h-5 text-white" />} title="Mental & Emotional Well-being" iconBg="bg-violet-400" status={data.moodScore <= 2 || data.stressLevel >= 4 || data.anxietyLevel >= 4 ? (data.moodScore === 1 ? "critical" : "moderate") : "stable"}>
                   <MetricCard icon={<span className="text-lg">{["😟","😕","😐","🙂","😊"][data.moodScore-1]}</span>} label="Mood" value={moodLabel(data.moodScore)} warning={data.moodScore <= 2} />
                   <MetricCard icon={<span className="text-lg">{data.stressLevel >= 4 ? "😰" : "😌"}</span>} label="Stress" value={`${data.stressLevel}/5`} warning={data.stressLevel >= 4} />
+                  <MetricCard icon={<span className="text-lg">{data.anxietyLevel >= 4 ? "😟" : "🧘"}</span>} label="Anxiety" value={`${data.anxietyLevel}/5`} warning={data.anxietyLevel >= 4} />
+                  <MetricCard icon={<span className="text-lg">{data.hadSocialInteractions ? "👥" : "🔇"}</span>} label="Social" value={data.hadSocialInteractions ? "Interacted" : "Isolated"} warning={!data.hadSocialInteractions} />
+                  <MetricCard icon={<span className="text-lg">{data.feelingLonely ? "💔" : "💙"}</span>} label="Loneliness" value={data.feelingLonely ? "Feeling lonely" : "Feeling connected"} warning={data.feelingLonely} />
+                  <MetricCard icon={<span className="text-lg">🌿</span>} label="Outdoor Time" value={`${data.outdoorTimeMinutes ?? 0} min`} />
                   {data.emotionalNotes && (
                     <div className="col-span-2 bg-muted/40 rounded-xl p-3 text-xs text-muted-foreground italic">
                       "{data.emotionalNotes}"
@@ -359,40 +380,32 @@ const ChildDashboard = () => {
                 </SectionCard>
 
                 {/* Food & Hydration */}
-                <SectionCard
-                  icon={<Droplets className="w-5 h-5 text-white" />}
-                  title="Food & Hydration"
-                  iconBg="bg-sky-400"
-                  status={data.mealsEaten <= 1 || data.waterIntake < 4 ? "moderate" : "stable"}
-                >
+                <SectionCard icon={<Droplets className="w-5 h-5 text-white" />} title="Food & Hydration" iconBg="bg-sky-400" status={data.mealsEaten <= 1 || data.waterIntake < 4 ? "moderate" : "stable"}>
                   <MetricCard icon={<span className="text-lg">🍽️</span>} label="Meals eaten" value={`${data.mealsEaten}/3 meals`} warning={data.mealsEaten <= 1} />
                   <MetricCard icon={<span className="text-lg">💧</span>} label="Water intake" value={`${data.waterIntake} cups`} warning={data.waterIntake < 4} />
+                  <MetricCard icon={<span className="text-lg">{data.ateBreakfast ? "✅" : "❌"}</span>} label="Breakfast" value={data.ateBreakfast ? "Eaten" : "Skipped"} warning={!data.ateBreakfast} />
+                  <MetricCard icon={<span className="text-lg">{data.ateLunch ? "✅" : "❌"}</span>} label="Lunch" value={data.ateLunch ? "Eaten" : "Skipped"} warning={!data.ateLunch} />
+                  <MetricCard icon={<span className="text-lg">{data.ateDinner ? "✅" : "❌"}</span>} label="Dinner" value={data.ateDinner ? "Eaten" : "Skipped"} warning={!data.ateDinner} />
+                  <MetricCard icon={<span className="text-lg">☕</span>} label="Caffeine" value={`${data.caffeineIntake ?? 0} cups`} />
+                  <MetricCard icon={<span className="text-lg">{data.hadFruitsVeggies ? "🥦" : "❌"}</span>} label="Fruits & Veg" value={data.hadFruitsVeggies ? "Had some" : "None today"} warning={!data.hadFruitsVeggies} />
+                  <MetricCard icon={<span className="text-lg">{data.tookVitamins ? "💊" : "—"}</span>} label="Vitamins" value={data.tookVitamins ? "Taken" : "Not taken"} />
                   <MetricCard icon={<span className="text-lg">{data.appetiteGood ? "✅" : "❌"}</span>} label="Appetite" value={data.appetiteGood ? "Good" : "Poor"} warning={!data.appetiteGood} />
                   <MetricCard icon={<span className="text-lg">🥗</span>} label="Diet Score" value={`${data.dietHabitsScore ?? 50}/100`} warning={(data.dietHabitsScore ?? 50) < 40} />
                 </SectionCard>
 
                 {/* Sleep */}
-                <SectionCard
-                  icon={<Moon className="w-5 h-5 text-white" />}
-                  title="Sleep & Rest"
-                  iconBg="bg-indigo-400"
-                  status={data.sleepHours < 5 || data.sleepQuality <= 2 ? (data.sleepHours < 4 ? "critical" : "moderate") : "stable"}
-                  fullGrid
-                >
+                <SectionCard icon={<Moon className="w-5 h-5 text-white" />} title="Sleep & Rest" iconBg="bg-indigo-400" status={data.sleepHours < 5 || data.sleepQuality <= 2 ? (data.sleepHours < 4 ? "critical" : "moderate") : "stable"} fullGrid>
                   <div className="grid grid-cols-2 gap-2">
                     <MetricCard icon={<span className="text-lg">🌙</span>} label="Sleep duration" value={`${data.sleepHours} hours`} warning={data.sleepHours < 5} />
                     <MetricCard icon={<span className="text-lg">{["😴","😴","😐","😊","⭐"][data.sleepQuality-1]}</span>} label="Sleep quality" value={`${data.sleepQuality}/5`} warning={data.sleepQuality <= 2} />
+                    <MetricCard icon={<span className="text-lg">⏰</span>} label="Wake Up" value={data.wakeUpTime || "Not set"} />
+                    <MetricCard icon={<span className="text-lg">🛌</span>} label="Bedtime" value={data.sleepInBedTime || "Not set"} />
+                    <MetricCard icon={<span className="text-lg">{data.feltRestedAfterSleep ? "✅" : "❌"}</span>} label="Felt rested?" value={data.feltRestedAfterSleep ? "Yes" : "No"} warning={!data.feltRestedAfterSleep} />
+                    <MetricCard icon={<span className="text-lg">{data.snoringConcerns ? "⚠️" : "✅"}</span>} label="Snoring?" value={data.snoringConcerns ? "Reported" : "No concerns"} warning={data.snoringConcerns} />
                   </div>
-                  {/* Sleep breakdown */}
                   <div className="bg-muted/30 rounded-xl p-3">
                     <div className="text-xs font-semibold text-muted-foreground mb-2">Sleep Breakdown</div>
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-                      {data.sleepInBedTime && (
-                        <div className="flex justify-between col-span-2">
-                          <span className="text-muted-foreground">In Bed</span>
-                          <span className="font-bold text-foreground">{data.sleepInBedTime}</span>
-                        </div>
-                      )}
                       <div className="flex justify-between">
                         <span className="text-primary font-medium">Deep Sleep</span>
                         <span className="font-bold">{data.deepSleepHours ?? 0}h</span>
@@ -415,46 +428,128 @@ const ChildDashboard = () => {
                 </SectionCard>
 
                 {/* Physical */}
-                <SectionCard
-                  icon={<Zap className="w-5 h-5 text-white" />}
-                  title="Physical Activity & Comfort"
-                  iconBg="bg-amber-400"
-                  status={data.mobilityLevel <= 2 || data.painLevel >= 4 ? (data.painLevel === 5 ? "critical" : "moderate") : "stable"}
-                >
+                <SectionCard icon={<Zap className="w-5 h-5 text-white" />} title="Physical Activity & Comfort" iconBg="bg-amber-400" status={data.mobilityLevel <= 2 || data.painLevel >= 4 ? (data.painLevel === 5 ? "critical" : "moderate") : "stable"}>
                   <MetricCard icon={<span className="text-lg">🚶</span>} label="Mobility" value={`${data.mobilityLevel}/5`} warning={data.mobilityLevel <= 2} />
                   <MetricCard icon={<span className="text-lg">{data.painLevel >= 4 ? "🤕" : "💪"}</span>} label="Pain level" value={painLabel(data.painLevel)} warning={data.painLevel >= 4} />
                   <MetricCard icon={<span className="text-lg">⏱️</span>} label="Exercise" value={`${data.exerciseMinutes} min`} />
+                  <MetricCard icon={<span className="text-lg">{data.didStretching ? "🧘" : "—"}</span>} label="Stretching" value={data.didStretching ? "Done" : "Not today"} />
+                  <MetricCard icon={<span className="text-lg">{data.didPhysicalTherapy ? "🏥" : "—"}</span>} label="Physical Therapy" value={data.didPhysicalTherapy ? "Done" : "Not today"} />
+                  <MetricCard icon={<span className="text-lg">{data.usedWalkingAid ? "🦯" : "🚶"}</span>} label="Walking Aid" value={data.usedWalkingAid ? "Used" : "Not needed"} />
                 </SectionCard>
+              </>
+            )}
 
-                {/* Medicines */}
-                <SectionCard
-                  icon={<Pill className="w-5 h-5 text-white" />}
-                  title="Medicines & Monitoring"
-                  iconBg="bg-emerald-400"
-                  status={!data.medicationTaken ? "critical" : "stable"}
-                >
-                  <MetricCard icon={<span className="text-lg">{data.medicationTaken ? "✅" : "❌"}</span>} label="Medication" value={data.medicationTaken ? "Taken" : "Not taken"} warning={!data.medicationTaken} />
+            {/* ============ MEDICATIONS TAB ============ */}
+            {activeTab === "medications" && (
+              <>
+                <SectionCard icon={<Pill className="w-5 h-5 text-white" />} title="Medicines & Monitoring" iconBg="bg-emerald-400" status={!data.medicationTaken ? "critical" : "stable"} fullGrid>
+                  <MetricCard icon={<span className="text-lg">{data.medicationTaken ? "✅" : "❌"}</span>} label="All Medications" value={data.medicationTaken ? "Taken today" : "Not all taken"} warning={!data.medicationTaken} />
                   <MetricCard icon={<span className="text-lg">❤️</span>} label="Blood pressure" value={data.bloodPressure || "Not recorded"} />
                   <MetricCard icon={<span className="text-lg">🩸</span>} label="Blood sugar" value={data.bloodSugar || "Not recorded"} />
                   <MetricCard icon={<span className="text-lg">🫀</span>} label="Cholesterol" value={data.cholesterol || "Not recorded"} />
                   <MetricCard icon={<span className="text-lg">💉</span>} label="Diabetes (Glucose)" value={data.diabetesReading || "Not recorded"} />
                 </SectionCard>
 
-                {/* Safety */}
-                <SectionCard
-                  icon={<Shield className="w-5 h-5 text-white" />}
-                  title="Overall Safety"
-                  iconBg="bg-rose-400"
-                  status={data.hadFall || !data.feltSafe ? "critical" : data.needsHelp ? "moderate" : "stable"}
-                >
-                  <MetricCard icon={<span className="text-lg">{data.feltSafe ? "🏠" : "⚠️"}</span>} label="Feeling safe" value={data.feltSafe ? "Yes" : "No"} warning={!data.feltSafe} />
-                  <MetricCard icon={<span className="text-lg">{data.hadFall ? "🚨" : "✅"}</span>} label="Had a fall" value={data.hadFall ? "YES - FELL" : "No fall"} warning={data.hadFall} />
-                  <MetricCard icon={<span className="text-lg">{data.needsHelp ? "🙏" : "✅"}</span>} label="Needs help" value={data.needsHelp ? "Yes" : "No"} warning={data.needsHelp} />
-                </SectionCard>
+                {/* Medication Schedule */}
+                {data.medications && data.medications.length > 0 && (
+                  <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-9 h-9 bg-emerald-400 rounded-xl flex items-center justify-center">
+                        <Pill className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="font-bold text-foreground text-sm">Medication Schedule</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {data.medications.map((med, i) => (
+                        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${med.taken ? "border-primary/20 bg-primary/5" : "border-border bg-muted/20"}`}>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${med.taken ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                            {med.taken ? "✓" : "○"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-foreground">{med.name}</div>
+                            <div className="text-xs text-muted-foreground">{med.dose} · {med.time} · {med.frequency}</div>
+                          </div>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${med.taken ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                            {med.taken ? "Taken" : "Pending"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Allergies */}
+                {data.allergies && (
+                  <div className="bg-card rounded-2xl p-4 shadow-card border border-destructive/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">⚠️</span>
+                      <span className="font-semibold text-sm text-foreground">Known Allergies</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {data.allergies.split(",").map((a, i) => (
+                        <span key={i} className="text-xs px-2.5 py-1 bg-destructive/10 text-destructive border border-destructive/20 rounded-full font-medium">
+                          {a.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Side Effects */}
+                {data.medicationSideEffects && (
+                  <div className="bg-card rounded-2xl p-4 shadow-card border border-amber-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">🔔</span>
+                      <span className="font-semibold text-sm text-foreground">Side Effects Reported</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{data.medicationSideEffects}</p>
+                  </div>
+                )}
               </>
             )}
 
-            {/* ============ WEEKLY TRENDS TAB ============ */}
+            {/* ============ APPOINTMENTS TAB ============ */}
+            {activeTab === "appointments" && (
+              <>
+                {data.appointments && data.appointments.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-9 h-9 bg-blue-500 rounded-xl flex items-center justify-center">
+                          <Calendar className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="font-bold text-foreground">Upcoming Appointments</h3>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{data.appointments.length} appointment{data.appointments.length > 1 ? "s" : ""} scheduled</p>
+                    </div>
+                    {data.appointments.map((appt, i) => (
+                      <div key={i} className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-4 items-start">
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-950/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Calendar className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-foreground">{appt.title}</div>
+                          <div className="text-sm text-muted-foreground">Dr. {appt.doctor}</div>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <Clock className="w-3.5 h-3.5 text-primary" />
+                            <span className="text-xs text-primary font-medium">{appt.date} {appt.time && `· ${appt.time}`}</span>
+                          </div>
+                          {appt.notes && <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-card rounded-2xl p-8 shadow-card border border-border text-center">
+                    <div className="text-4xl mb-3">📅</div>
+                    <h2 className="font-bold text-foreground mb-1">No appointments</h2>
+                    <p className="text-muted-foreground text-sm">Your parent hasn't added any upcoming appointments yet.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ============ TRENDS TAB ============ */}
             {activeTab === "trends" && (
               <div className="bg-card rounded-2xl p-5 shadow-card border border-border space-y-5">
                 <div className="flex items-center gap-3 mb-2">
@@ -473,11 +568,10 @@ const ChildDashboard = () => {
                 <div className="h-px bg-border" />
                 <WeeklyBar values={hrWeek.map(v => Math.round(v / 10))} label="Heart Rate (÷10)" color="bg-rose-400" />
 
-                {/* Summary cards */}
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Mood</div>
-                  <div className="text-lg font-bold text-primary">{(moodWeek.reduce((a, b) => a + b, 0) / moodWeek.length).toFixed(1)}/5</div>
+                    <div className="text-lg font-bold text-primary">{(moodWeek.reduce((a, b) => a + b, 0) / moodWeek.length).toFixed(1)}/5</div>
                   </div>
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Steps</div>
