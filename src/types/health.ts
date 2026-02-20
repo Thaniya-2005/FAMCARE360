@@ -8,21 +8,36 @@ export interface HealthData {
   stressLevel: number; // 1-5
   emotionalNotes: string;
   // Food & Hydration
-  mealsEaten: number; // 1-3
+  mealsEaten: number; // 0-3
   waterIntake: number; // cups
   appetiteGood: boolean;
   // Sleep & Rest
   sleepHours: number;
   sleepQuality: number; // 1-5
   hadNap: boolean;
+  // Sleep Breakdown (hours)
+  sleepInBedTime: string; // e.g. "10:30 PM"
+  deepSleepHours: number;
+  lightSleepHours: number;
+  remSleepHours: number;
+  awakeDuringNight: number; // minutes
   // Physical Activity
   mobilityLevel: number; // 1-5
   exerciseMinutes: number;
   painLevel: number; // 0-5
+  stepsCount: number;
+  // Vital Signs
+  heartRate: number; // bpm
+  temperature: number; // °F
   // Medicines
   medicationTaken: boolean;
   bloodPressure: string;
   bloodSugar: string;
+  cholesterol: string; // mg/dL
+  diabetesReading: string; // mg/dL (fasting glucose)
+  // Lifestyle Scores (0-100)
+  dietHabitsScore: number;
+  lifestyleScore: number;
   // Overall Safety
   feltSafe: boolean;
   hadFall: boolean;
@@ -50,10 +65,28 @@ export function calculateHealthStatus(data: HealthData): HealthStatus {
   if (data.hadFall) riskScore += 2;
   if (data.needsHelp) riskScore++;
   if (data.sosActivated) riskScore += 3;
+  if (data.heartRate > 100 || data.heartRate < 50) riskScore++;
+  if (data.temperature > 99.5 || data.temperature < 97.0) riskScore++;
+  if (data.stepsCount < 1000) riskScore++;
 
   if (riskScore >= 5) return 'critical';
   if (riskScore >= 2) return 'moderate';
   return 'stable';
+}
+
+export function calculateLifestyleScore(data: HealthData): number {
+  let score = 0;
+  // Sleep (max 20)
+  score += Math.min((data.sleepHours / 8) * 20, 20);
+  // Mood (max 20)
+  score += (data.moodScore / 5) * 20;
+  // Activity (max 20)
+  score += Math.min((data.stepsCount / 8000) * 10 + (data.exerciseMinutes / 30) * 10, 20);
+  // Nutrition (max 20)
+  score += (data.mealsEaten / 3) * 10 + (data.waterIntake / 8) * 10;
+  // Safety & Medication (max 20)
+  score += (data.medicationTaken ? 10 : 0) + (data.feltSafe ? 5 : 0) + (!data.hadFall ? 5 : 0);
+  return Math.round(Math.min(score, 100) * 10) / 10;
 }
 
 export function getDefaultHealthData(): HealthData {
@@ -69,9 +102,21 @@ export function getDefaultHealthData(): HealthData {
     sleepHours: 7,
     sleepQuality: 3,
     hadNap: false,
+    sleepInBedTime: '10:00 PM',
+    deepSleepHours: 2,
+    lightSleepHours: 3,
+    remSleepHours: 1.5,
+    awakeDuringNight: 30,
     mobilityLevel: 3,
     exerciseMinutes: 0,
     painLevel: 0,
+    stepsCount: 0,
+    heartRate: 72,
+    temperature: 98.6,
+    cholesterol: '',
+    diabetesReading: '',
+    dietHabitsScore: 50,
+    lifestyleScore: 50,
     medicationTaken: true,
     bloodPressure: '',
     bloodSugar: '',
@@ -82,3 +127,18 @@ export function getDefaultHealthData(): HealthData {
     sosActivated: false,
   };
 }
+
+export const HEALTH_TIPS = [
+  { emoji: "🚶", tip: "Walking 8,000 steps a day can reduce the risk of many chronic diseases." },
+  { emoji: "💧", tip: "Drink at least 8 cups of water daily to stay properly hydrated." },
+  { emoji: "😴", tip: "Adults aged 60+ should aim for 7–8 hours of quality sleep per night." },
+  { emoji: "🧘", tip: "10 minutes of gentle stretching every morning improves mobility and mood." },
+  { emoji: "🥦", tip: "Eating at least 5 servings of fruits and vegetables daily boosts immunity." },
+  { emoji: "💊", tip: "Taking medications at the same time daily helps maintain steady drug levels." },
+  { emoji: "❤️", tip: "A normal resting heart rate for adults is between 60–100 beats per minute." },
+  { emoji: "🌡️", tip: "Normal body temperature ranges from 97°F to 99°F (36.1°C to 37.2°C)." },
+  { emoji: "🧠", tip: "Social connection reduces the risk of depression and cognitive decline." },
+  { emoji: "☀️", tip: "15 minutes of sunlight daily helps your body produce vitamin D naturally." },
+  { emoji: "🩺", tip: "Check your blood pressure regularly — hypertension often has no symptoms." },
+  { emoji: "🍎", tip: "Reducing sugar intake helps maintain steady energy levels throughout the day." },
+];
