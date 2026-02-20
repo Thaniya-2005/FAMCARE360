@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, ArrowLeft, Smile, Droplets, Moon, Zap, Pill, Shield, MessageCircle, AlertTriangle, Footprints, Thermometer, Activity } from "lucide-react";
-import { HealthData, getDefaultHealthData } from "@/types/health";
+import {
+  Heart, ArrowLeft, Smile, Droplets, Moon, Zap, Pill, Shield, MessageCircle,
+  AlertTriangle, Footprints, Thermometer, Activity, Calendar, Plus, Trash2,
+  Users, Clock
+} from "lucide-react";
+import { HealthData, Medication, Appointment, getDefaultHealthData } from "@/types/health";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -59,13 +63,16 @@ function ScoreRow({ label, value, onChange, min = 1, max = 5, lowLabel, highLabe
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, value, onChange, note }: { label: string; value: boolean; onChange: (v: boolean) => void; note?: string }) {
   return (
     <div className="flex items-center justify-between">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <div>
+        <label className="text-sm font-medium text-foreground">{label}</label>
+        {note && <p className="text-xs text-muted-foreground">{note}</p>}
+      </div>
       <button
         onClick={() => onChange(!value)}
-        className={`w-12 h-6 rounded-full transition-colors duration-200 relative ${value ? "bg-primary" : "bg-muted"}`}
+        className={`w-12 h-6 rounded-full transition-colors duration-200 relative flex-shrink-0 ${value ? "bg-primary" : "bg-muted"}`}
       >
         <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all duration-200 shadow ${value ? "left-6" : "left-0.5"}`} />
       </button>
@@ -73,13 +80,14 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   );
 }
 
-function NumberInput({ label, value, onChange, unit, placeholder }: {
+function NumberInput({ label, value, onChange, unit, placeholder, note }: {
   label: string; value: number | string; onChange: (v: string) => void;
-  unit?: string; placeholder?: string;
+  unit?: string; placeholder?: string; note?: string;
 }) {
   return (
     <div>
       <label className="text-sm font-medium text-foreground mb-1 block">{label}</label>
+      {note && <p className="text-xs text-muted-foreground mb-1">{note}</p>}
       <div className="relative">
         <Input
           type="number"
@@ -96,12 +104,23 @@ function NumberInput({ label, value, onChange, unit, placeholder }: {
   );
 }
 
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1 border-t border-border">{label}</div>
+  );
+}
+
 const ParentDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState<HealthData>(getDefaultHealthData);
   const [submitted, setSubmitted] = useState(false);
   const [sosActive, setSosActive] = useState(false);
+
+  // Medication form state
+  const [newMed, setNewMed] = useState<Omit<Medication, 'taken' | 'refillNeeded'>>({ name: '', dose: '', time: '', frequency: 'Daily' });
+  // Appointment form state
+  const [newAppt, setNewAppt] = useState<Omit<Appointment, 'completed'>>({ title: '', doctor: '', date: '', time: '', notes: '' });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -119,6 +138,35 @@ const ParentDashboard = () => {
 
   const update = (field: keyof HealthData, value: unknown) => {
     setData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addMedication = () => {
+    if (!newMed.name.trim()) return;
+    const med: Medication = { ...newMed, taken: false, refillNeeded: false };
+    update("medications", [...data.medications, med]);
+    setNewMed({ name: '', dose: '', time: '', frequency: 'Daily' });
+  };
+
+  const removeMedication = (i: number) => {
+    update("medications", data.medications.filter((_, idx) => idx !== i));
+  };
+
+  const toggleMedTaken = (i: number) => {
+    const updated = data.medications.map((m, idx) => idx === i ? { ...m, taken: !m.taken } : m);
+    update("medications", updated);
+    // If all meds taken, mark medicationTaken true
+    update("medicationTaken", updated.every(m => m.taken));
+  };
+
+  const addAppointment = () => {
+    if (!newAppt.title.trim()) return;
+    const appt: Appointment = { ...newAppt, completed: false };
+    update("appointments", [...data.appointments, appt]);
+    setNewAppt({ title: '', doctor: '', date: '', time: '', notes: '' });
+  };
+
+  const removeAppointment = (i: number) => {
+    update("appointments", data.appointments.filter((_, idx) => idx !== i));
   };
 
   const handleSubmit = () => {
@@ -194,7 +242,7 @@ const ParentDashboard = () => {
       {/* Sections */}
       <div className="max-w-xl mx-auto px-4 mt-5 space-y-4">
 
-        {/* 1. Vital Signs — NEW */}
+        {/* 1. Vital Signs */}
         <Section icon={<Activity className="w-5 h-5 text-white" />} title="Vital Signs" color="bg-cyan-500">
           <div className="grid grid-cols-2 gap-3">
             <NumberInput
@@ -218,8 +266,9 @@ const ParentDashboard = () => {
             onChange={v => update("stepsCount", parseInt(v) || 0)}
             unit="steps"
             placeholder="0"
+            note="How many steps have you walked today?"
           />
-          {/* Step progress ring visual */}
+          {/* Step progress ring */}
           <div className="flex items-center gap-4 bg-muted/30 rounded-xl p-3">
             <div className="relative w-16 h-16 flex-shrink-0">
               <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
@@ -241,16 +290,44 @@ const ParentDashboard = () => {
               <div className="text-xs text-primary font-medium mt-0.5">{Math.round((data.stepsCount / 8000) * 100)}% of goal</div>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberInput
+              label="Distance Walked"
+              value={data.distanceKm}
+              onChange={v => update("distanceKm", parseFloat(v) || 0)}
+              unit="km"
+              placeholder="0"
+            />
+            <NumberInput
+              label="Active Calories"
+              value={data.activeCalories}
+              onChange={v => update("activeCalories", parseInt(v) || 0)}
+              unit="kcal"
+              placeholder="0"
+            />
+          </div>
         </Section>
 
         {/* 2. Mental & Emotional */}
         <Section icon={<Smile className="w-5 h-5 text-white" />} title="Mental & Emotional Well-being" color="bg-violet-400">
           <ScoreRow label="How is your mood today?" value={data.moodScore} onChange={v => update("moodScore", v)} lowLabel="Very sad" highLabel="Very happy" />
           <ScoreRow label="Stress level" value={data.stressLevel} onChange={v => update("stressLevel", v)} lowLabel="Very calm" highLabel="Very stressed" />
+          <ScoreRow label="Anxiety level" value={data.anxietyLevel} onChange={v => update("anxietyLevel", v)} lowLabel="No anxiety" highLabel="Very anxious" />
+          <SectionDivider label="Social & Emotional" />
+          <Toggle label="Did you interact with family or friends today?" value={data.hadSocialInteractions} onChange={v => update("hadSocialInteractions", v)} />
+          <Toggle label="Are you feeling lonely or isolated?" value={data.feelingLonely} onChange={v => update("feelingLonely", v)} />
+          <NumberInput
+            label="Outdoor / Fresh Air Time"
+            value={data.outdoorTimeMinutes}
+            onChange={v => update("outdoorTimeMinutes", parseInt(v) || 0)}
+            unit="min"
+            placeholder="0"
+            note="Time spent outside today (park, garden, walk)"
+          />
           <div>
-            <label className="text-sm font-medium text-foreground mb-1 block">Any feelings to share?</label>
+            <label className="text-sm font-medium text-foreground mb-1 block">Any feelings or thoughts to share?</label>
             <Textarea
-              placeholder="Write about how you're feeling today..."
+              placeholder="Write about how you're feeling today — worries, happiness, anything on your mind..."
               value={data.emotionalNotes}
               onChange={e => update("emotionalNotes", e.target.value)}
               className="text-sm resize-none h-20"
@@ -260,10 +337,25 @@ const ParentDashboard = () => {
 
         {/* 3. Food & Hydration */}
         <Section icon={<Droplets className="w-5 h-5 text-white" />} title="Food & Hydration" color="bg-sky-400">
-          <ScoreRow label="Meals eaten today" value={data.mealsEaten} onChange={v => update("mealsEaten", v)} min={0} max={3} lowLabel="None" highLabel="All 3" />
+          <ScoreRow label="Total meals eaten today" value={data.mealsEaten} onChange={v => update("mealsEaten", v)} min={0} max={3} lowLabel="None" highLabel="All 3" />
+          <SectionDivider label="Meal Breakdown" />
+          <Toggle label="Had breakfast?" value={data.ateBreakfast} onChange={v => update("ateBreakfast", v)} />
+          <Toggle label="Had lunch?" value={data.ateLunch} onChange={v => update("ateLunch", v)} />
+          <Toggle label="Had dinner?" value={data.ateDinner} onChange={v => update("ateDinner", v)} />
+          <SectionDivider label="Hydration & Nutrition" />
           <ScoreRow label="Water intake (cups)" value={data.waterIntake} onChange={v => update("waterIntake", v)} min={0} max={12} lowLabel="0 cups" highLabel="12+ cups" />
+          <NumberInput
+            label="Caffeine intake"
+            value={data.caffeineIntake}
+            onChange={v => update("caffeineIntake", parseInt(v) || 0)}
+            unit="cups"
+            placeholder="1"
+            note="Coffee, tea, or energy drinks"
+          />
           <Toggle label="Appetite feels good today?" value={data.appetiteGood} onChange={v => update("appetiteGood", v)} />
-          <ScoreRow label="Diet Habits Score" value={data.dietHabitsScore} onChange={v => update("dietHabitsScore", v)} min={0} max={100} lowLabel="Poor diet" highLabel="Excellent diet" />
+          <Toggle label="Ate fruits or vegetables today?" value={data.hadFruitsVeggies} onChange={v => update("hadFruitsVeggies", v)} />
+          <Toggle label="Took vitamins or supplements?" value={data.tookVitamins} onChange={v => update("tookVitamins", v)} />
+          <ScoreRow label="Overall Diet Habits Score" value={data.dietHabitsScore} onChange={v => update("dietHabitsScore", v)} min={0} max={100} lowLabel="Poor diet" highLabel="Excellent diet" />
         </Section>
 
         {/* 4. Sleep & Rest */}
@@ -278,16 +370,28 @@ const ParentDashboard = () => {
                 className="text-sm"
               />
             </div>
-            <NumberInput
-              label="Total Sleep"
-              value={data.sleepHours}
-              onChange={v => update("sleepHours", parseFloat(v) || 0)}
-              unit="hrs"
-              placeholder="7"
-            />
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1 block">Wake Up Time</label>
+              <Input
+                placeholder="e.g. 7:00 AM"
+                value={data.wakeUpTime}
+                onChange={e => update("wakeUpTime", e.target.value)}
+                className="text-sm"
+              />
+            </div>
           </div>
-          <ScoreRow label="Sleep quality" value={data.sleepQuality} onChange={v => update("sleepQuality", v)} lowLabel="Very poor" highLabel="Excellent" />
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sleep Breakdown</div>
+          <NumberInput
+            label="Total Sleep Duration"
+            value={data.sleepHours}
+            onChange={v => update("sleepHours", parseFloat(v) || 0)}
+            unit="hrs"
+            placeholder="7"
+            note="Total hours of sleep last night"
+          />
+          <ScoreRow label="How was your sleep quality?" value={data.sleepQuality} onChange={v => update("sleepQuality", v)} lowLabel="Very poor" highLabel="Excellent" />
+          <Toggle label="Felt rested and refreshed after sleep?" value={data.feltRestedAfterSleep} onChange={v => update("feltRestedAfterSleep", v)} />
+          <Toggle label="Snoring or breathing concerns during sleep?" value={data.snoringConcerns} onChange={v => update("snoringConcerns", v)} />
+          <SectionDivider label="Sleep Breakdown" />
           <div className="grid grid-cols-2 gap-3">
             <NumberInput label="Deep Sleep" value={data.deepSleepHours} onChange={v => update("deepSleepHours", parseFloat(v) || 0)} unit="hrs" placeholder="2" />
             <NumberInput label="Light Sleep" value={data.lightSleepHours} onChange={v => update("lightSleepHours", parseFloat(v) || 0)} unit="hrs" placeholder="3" />
@@ -299,7 +403,7 @@ const ParentDashboard = () => {
 
         {/* 5. Physical Activity */}
         <Section icon={<Zap className="w-5 h-5 text-white" />} title="Physical Activity & Comfort" color="bg-amber-400">
-          <ScoreRow label="Mobility level" value={data.mobilityLevel} onChange={v => update("mobilityLevel", v)} lowLabel="Cannot move" highLabel="Fully mobile" />
+          <ScoreRow label="Mobility level today" value={data.mobilityLevel} onChange={v => update("mobilityLevel", v)} lowLabel="Cannot move" highLabel="Fully mobile" />
           <ScoreRow label="Pain or discomfort level" value={data.painLevel} onChange={v => update("painLevel", v)} min={0} max={5} lowLabel="No pain" highLabel="Severe pain" />
           <NumberInput
             label="Exercise / Walk Duration"
@@ -307,12 +411,89 @@ const ParentDashboard = () => {
             onChange={v => update("exerciseMinutes", parseInt(v) || 0)}
             unit="min"
             placeholder="0"
+            note="Total time spent on physical activity"
           />
+          <SectionDivider label="Activity Details" />
+          <Toggle label="Did physical therapy or rehabilitation today?" value={data.didPhysicalTherapy} onChange={v => update("didPhysicalTherapy", v)} />
+          <Toggle label="Did stretching or gentle exercises?" value={data.didStretching} onChange={v => update("didStretching", v)} />
+          <Toggle label="Used a walking aid (cane, walker, wheelchair)?" value={data.usedWalkingAid} onChange={v => update("usedWalkingAid", v)} />
         </Section>
 
         {/* 6. Medicines & Monitoring */}
         <Section icon={<Pill className="w-5 h-5 text-white" />} title="Medicines & Health Monitoring" color="bg-emerald-400">
           <Toggle label="Took all medications today?" value={data.medicationTaken} onChange={v => update("medicationTaken", v)} />
+
+          {/* Medication List */}
+          {data.medications.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">My Medication Schedule</div>
+              {data.medications.map((med, i) => (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${med.taken ? "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20" : "border-border bg-muted/20"}`}>
+                <button
+                    onClick={() => toggleMedTaken(i)}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${med.taken ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"}`}
+                  >
+                    {med.taken && <span className="text-xs">✓</span>}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{med.name}</div>
+                    <div className="text-xs text-muted-foreground">{med.dose} · {med.time} · {med.frequency}</div>
+                  </div>
+                  <button onClick={() => removeMedication(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add Medication */}
+          <SectionDivider label="Add Medication" />
+          <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Input placeholder="Medication name" value={newMed.name} onChange={e => setNewMed(p => ({ ...p, name: e.target.value }))} className="text-sm" />
+              <Input placeholder="Dose (e.g. 500mg)" value={newMed.dose} onChange={e => setNewMed(p => ({ ...p, dose: e.target.value }))} className="text-sm" />
+              <Input placeholder="Time (e.g. 8:00 AM)" value={newMed.time} onChange={e => setNewMed(p => ({ ...p, time: e.target.value }))} className="text-sm" />
+              <select
+                value={newMed.frequency}
+                onChange={e => setNewMed(p => ({ ...p, frequency: e.target.value }))}
+                className="text-sm border border-input bg-background rounded-md px-3 py-2 text-foreground"
+              >
+                <option>Daily</option>
+                <option>Twice Daily</option>
+                <option>Weekly</option>
+                <option>As Needed</option>
+              </select>
+            </div>
+            <button
+              onClick={addMedication}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add Medication
+            </button>
+          </div>
+
+          <SectionDivider label="Allergies & Side Effects" />
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1 block">Known Allergies</label>
+            <Input
+              placeholder="e.g. Penicillin, Dairy, Naproxen..."
+              value={data.allergies}
+              onChange={e => update("allergies", e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1 block">Any medication side effects noticed today?</label>
+            <Textarea
+              placeholder="Nausea, dizziness, rashes, unusual feelings..."
+              value={data.medicationSideEffects}
+              onChange={e => update("medicationSideEffects", e.target.value)}
+              className="text-sm resize-none h-16"
+            />
+          </div>
+
+          <SectionDivider label="Health Readings" />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-foreground mb-1 block">Blood Pressure</label>
@@ -333,7 +514,48 @@ const ParentDashboard = () => {
           </div>
         </Section>
 
-        {/* 7. Lifestyle Score */}
+        {/* 7. Appointments */}
+        <Section icon={<Calendar className="w-5 h-5 text-white" />} title="Upcoming Appointments" color="bg-blue-500">
+          {data.appointments.length > 0 && (
+            <div className="space-y-2">
+              {data.appointments.map((appt, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                  <div className="w-9 h-9 bg-blue-100 dark:bg-blue-950/40 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">{appt.title}</div>
+                    <div className="text-xs text-muted-foreground">Dr. {appt.doctor}</div>
+                    <div className="text-xs text-primary font-medium mt-0.5">{appt.date} {appt.time && `· ${appt.time}`}</div>
+                    {appt.notes && <div className="text-xs text-muted-foreground italic mt-0.5">{appt.notes}</div>}
+                  </div>
+                  <button onClick={() => removeAppointment(i)} className="text-muted-foreground hover:text-destructive transition-colors mt-0.5">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <SectionDivider label="Add Appointment" />
+          <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+            <Input placeholder="Appointment title (e.g. Cardiology Checkup)" value={newAppt.title} onChange={e => setNewAppt(p => ({ ...p, title: e.target.value }))} className="text-sm" />
+            <Input placeholder="Doctor name" value={newAppt.doctor} onChange={e => setNewAppt(p => ({ ...p, doctor: e.target.value }))} className="text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="date" value={newAppt.date} onChange={e => setNewAppt(p => ({ ...p, date: e.target.value }))} className="text-sm" />
+              <Input placeholder="Time (e.g. 2:30 PM)" value={newAppt.time} onChange={e => setNewAppt(p => ({ ...p, time: e.target.value }))} className="text-sm" />
+            </div>
+            <Input placeholder="Notes (optional)" value={newAppt.notes} onChange={e => setNewAppt(p => ({ ...p, notes: e.target.value }))} className="text-sm" />
+            <button
+              onClick={addAppointment}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add Appointment
+            </button>
+          </div>
+        </Section>
+
+        {/* 8. Lifestyle Score */}
         <Section icon={<Thermometer className="w-5 h-5 text-white" />} title="Lifestyle Score" color="bg-fuchsia-500">
           <ScoreRow label="Overall Diet & Lifestyle Rating" value={data.lifestyleScore} onChange={v => update("lifestyleScore", v)} min={0} max={100} lowLabel="Needs improvement" highLabel="Excellent" />
           <div className="bg-muted/30 rounded-xl p-3 flex items-center gap-3">
@@ -347,19 +569,71 @@ const ParentDashboard = () => {
           </div>
         </Section>
 
-        {/* 8. Overall Safety */}
+        {/* 9. Overall Safety */}
         <Section icon={<Shield className="w-5 h-5 text-white" />} title="Overall Health & Safety" color="bg-rose-400">
           <Toggle label="Feeling safe at home?" value={data.feltSafe} onChange={v => update("feltSafe", v)} />
           <Toggle label="Had a fall today?" value={data.hadFall} onChange={v => update("hadFall", v)} />
           <Toggle label="Need help with anything?" value={data.needsHelp} onChange={v => update("needsHelp", v)} />
+          <Toggle
+            label="Any hazards at home noticed?"
+            value={data.homeHazards}
+            onChange={v => update("homeHazards", v)}
+            note="Loose rugs, poor lighting, wet floors, etc."
+          />
+          <Toggle label="Did you contact or speak with your caregiver today?" value={data.usedEmergencyContact} onChange={v => update("usedEmergencyContact", v)} />
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1 block">Notes for caregiver or family</label>
+            <Textarea
+              placeholder="Anything specific you want your family to know today..."
+              value={data.caregiverNotes}
+              onChange={e => update("caregiverNotes", e.target.value)}
+              className="text-sm resize-none h-16"
+            />
+          </div>
         </Section>
 
-        {/* 9. Bonding Message */}
+        {/* 10. Care Circle */}
+        <Section icon={<Users className="w-5 h-5 text-white" />} title="Daily Check-in Summary" color="bg-teal-500">
+          <p className="text-sm text-muted-foreground">A quick review of today's most important updates before submitting.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-muted/30 rounded-xl p-3 text-center">
+              <div className="text-2xl mb-1">{data.medicationTaken ? "✅" : "❌"}</div>
+              <div className="text-xs font-semibold text-foreground">Medication</div>
+              <div className="text-xs text-muted-foreground">{data.medicationTaken ? "Taken" : "Not taken"}</div>
+            </div>
+            <div className="bg-muted/30 rounded-xl p-3 text-center">
+              <div className="text-2xl mb-1">{["😟","😕","😐","🙂","😊"][data.moodScore-1]}</div>
+              <div className="text-xs font-semibold text-foreground">Mood</div>
+              <div className="text-xs text-muted-foreground">{data.moodScore}/5</div>
+            </div>
+            <div className="bg-muted/30 rounded-xl p-3 text-center">
+              <div className="text-2xl mb-1">😴</div>
+              <div className="text-xs font-semibold text-foreground">Sleep</div>
+              <div className="text-xs text-muted-foreground">{data.sleepHours} hrs</div>
+            </div>
+            <div className="bg-muted/30 rounded-xl p-3 text-center">
+              <div className="text-2xl mb-1">🚶</div>
+              <div className="text-xs font-semibold text-foreground">Steps</div>
+              <div className="text-xs text-muted-foreground">{data.stepsCount.toLocaleString()}</div>
+            </div>
+          </div>
+          {data.appointments.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-3">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-semibold mb-1">
+                <Clock className="w-4 h-4" />
+                {data.appointments.length} Upcoming Appointment{data.appointments.length > 1 ? "s" : ""}
+              </div>
+              <div className="text-xs text-muted-foreground">{data.appointments[0].title} — {data.appointments[0].date}</div>
+            </div>
+          )}
+        </Section>
+
+        {/* 11. Bonding Message */}
         <Section icon={<MessageCircle className="w-5 h-5 text-white" />} title="Daily Message to Family 💙" color="bg-pink-400">
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">Share a message with your child today</label>
             <Textarea
-              placeholder="Write something meaningful... 'Thinking of you today!'"
+              placeholder="Write something meaningful... 'Thinking of you today! I had a lovely walk this morning.'"
               value={data.bondingMessage}
               onChange={e => update("bondingMessage", e.target.value)}
               className="text-sm resize-none h-24"
