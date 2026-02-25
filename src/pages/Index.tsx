@@ -1,9 +1,25 @@
 import { useNavigate } from "react-router-dom";
-import { Heart, Shield, ChevronRight, Activity, Bell, Users } from "lucide-react";
+import { Heart, Shield, ChevronRight, Activity, Bell, Users, Calculator, UtensilsCrossed, Dumbbell, BarChart2 } from "lucide-react";
 import heroImage from "@/assets/hero-family.png";
 
 const Index = () => {
   const navigate = useNavigate();
+
+  const features = [
+    { icon: Activity, label: "Daily Health Tracking", desc: "Vitals, mood, sleep & more" },
+    { icon: Bell, label: "Emergency SOS Alerts", desc: "Instant family notifications" },
+    { icon: Users, label: "Family Bond Messages", desc: "Stay emotionally connected" },
+    { icon: Calculator, label: "BMI & Workout Planner", desc: "Personalized fitness plans" },
+    { icon: UtensilsCrossed, label: "Meal & Calorie Tracker", desc: "Log food & nutrition" },
+    { icon: Dumbbell, label: "Exercise Tracker", desc: "Track reps, sets & calories" },
+  ];
+
+  const quickLinks = [
+    { path: "/bmi", icon: Calculator, label: "BMI Calculator", color: "bg-emerald-500", emoji: "🧮" },
+    { path: "/meals", icon: UtensilsCrossed, label: "Meal Tracker", color: "bg-amber-500", emoji: "🍽️" },
+    { path: "/exercise", icon: Dumbbell, label: "Exercise", color: "bg-violet-500", emoji: "💪" },
+    { path: "/routine", icon: BarChart2, label: "Daily Routine", color: "bg-sky-500", emoji: "📊" },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -18,13 +34,13 @@ const Index = () => {
       </header>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center">
-        <div className="relative w-full max-w-2xl mx-auto mb-10">
+      <section className="flex-1 flex flex-col items-center px-6 py-6 text-center">
+        <div className="relative w-full max-w-2xl mx-auto mb-8">
           <div className="absolute inset-0 gradient-hero opacity-10 rounded-3xl blur-3xl" />
           <img
             src={heroImage}
             alt="FamCare360 Family Health"
-            className="w-full h-64 object-cover rounded-3xl shadow-card relative"
+            className="w-full h-56 object-cover rounded-3xl shadow-card relative"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent rounded-3xl" />
         </div>
@@ -34,28 +50,44 @@ const Index = () => {
           <span className="text-xs font-semibold text-primary uppercase tracking-wide">Smart Family Health Monitoring</span>
         </div>
 
-        <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 leading-tight">
+        <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-3 leading-tight">
           Stay connected to<br />
           <span className="text-primary">what matters most</span>
         </h1>
-        <p className="text-muted-foreground text-lg max-w-md mb-12">
-          Monitor your parents' daily health, receive emergency alerts, and strengthen family bonds — all in one place.
+        <p className="text-muted-foreground text-base max-w-md mb-8">
+          Monitor your parents' daily health, track fitness, meals & receive emergency alerts — all in one place.
         </p>
 
-        {/* Features row */}
-        <div className="flex gap-6 mb-12 flex-wrap justify-center">
-          {[
-            { icon: Activity, label: "Daily Health Tracking" },
-            { icon: Bell, label: "Emergency SOS Alerts" },
-            { icon: Users, label: "Family Bond Messages" },
-          ].map(({ icon: Icon, label }) => (
-            <div key={label} className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
+        {/* Features grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8 w-full max-w-lg">
+          {features.map(({ icon: Icon, label, desc }) => (
+            <div key={label} className="flex flex-col items-center gap-1.5 p-3 bg-card rounded-xl border border-border shadow-sm">
+              <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
                 <Icon className="w-4 h-4 text-primary" />
               </div>
-              <span>{label}</span>
+              <span className="text-xs font-semibold text-foreground text-center leading-tight">{label}</span>
+              <span className="text-[10px] text-muted-foreground text-center">{desc}</span>
             </div>
           ))}
+        </div>
+
+        {/* Quick Access Tools */}
+        <div className="w-full max-w-sm mb-8">
+          <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Quick Access Tools</p>
+          <div className="grid grid-cols-4 gap-2">
+            {quickLinks.map(link => (
+              <button
+                key={link.path}
+                onClick={() => navigate(link.path)}
+                className="flex flex-col items-center gap-1.5 p-3 bg-card rounded-xl border border-border shadow-sm hover:shadow-card hover:-translate-y-0.5 transition-all"
+              >
+                <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}>
+                  <span className="text-lg">{link.emoji}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-foreground text-center leading-tight">{link.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Role Selection */}
