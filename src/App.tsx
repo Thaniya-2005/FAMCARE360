@@ -6,6 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ParentDashboard from "./pages/ParentDashboard";
 import ChildDashboard from "./pages/ChildDashboard";
+import BMICalculator from "./pages/BMICalculator";
+import MealTracker from "./pages/MealTracker";
+import ExerciseTracker from "./pages/ExerciseTracker";
+import DailyRoutine from "./pages/DailyRoutine";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +24,10 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="/child" element={<ChildDashboard />} />
+          <Route path="/bmi" element={<BMICalculator />} />
+          <Route path="/meals" element={<MealTracker />} />
+          <Route path="/exercise" element={<ExerciseTracker />} />
+          <Route path="/routine" element={<DailyRoutine />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
