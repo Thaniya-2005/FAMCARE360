@@ -10,6 +10,7 @@ import BMICalculator from "./pages/BMICalculator";
 import MealTracker from "./pages/MealTracker";
 import ExerciseTracker from "./pages/ExerciseTracker";
 import DailyRoutine from "./pages/DailyRoutine";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="/child" element={<ChildDashboard />} />
           <Route path="/bmi" element={<BMICalculator />} />
