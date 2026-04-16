@@ -95,7 +95,7 @@ const Index = () => {
           <p className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wide">Choose your role to continue</p>
           <div className="flex flex-col gap-4">
             <button
-              onClick={() => navigate("/parent")}
+              onClick={() => navigate("/login")}
               className="group relative w-full gradient-parent text-white rounded-2xl p-5 flex items-center justify-between shadow-card hover:shadow-hover transition-all duration-300 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-4">
@@ -111,7 +111,7 @@ const Index = () => {
             </button>
 
             <button
-              onClick={() => navigate("/child")}
+              onClick={() => navigate("/login")}
               className="group relative w-full gradient-child text-white rounded-2xl p-5 flex items-center justify-between shadow-card hover:shadow-hover transition-all duration-300 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-4">
