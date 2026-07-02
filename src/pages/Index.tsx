@@ -26,9 +26,7 @@ const Index = () => {
       {/* Header */}
       <header className="px-6 py-4 flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 gradient-hero rounded-xl flex items-center justify-center shadow-card">
-            <Heart className="w-5 h-5 text-white fill-white" />
-          </div>
+          <div className="w-9 h-9 gradient-hero rounded-xl flex items-center justify-center shadow-card font-bold text-2xl">FC</div>
           <span className="text-xl font-bold text-foreground tracking-tight">FamCare<span className="text-primary">360</span></span>
         </div>
       </header>
