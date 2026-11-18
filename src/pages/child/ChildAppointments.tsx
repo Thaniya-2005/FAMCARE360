@@ -17,6 +17,7 @@ import { ChildLayout } from "@/components/child/ChildLayout";
 import { ChildAppointmentDetailsModal } from "@/components/child/ChildAppointmentDetailsModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { healthService } from "@/services/healthService";
+import { supabase } from "@/integrations/supabase/client";
 import { Appointment } from "@/types/health";
 import { useToast } from "@/hooks/use-toast";
 

@@ -15,6 +15,7 @@ import { ChildLayout } from "@/components/child/ChildLayout";
 import { ChildMedicationDetailsModal } from "@/components/child/ChildMedicationDetailsModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { healthService } from "@/services/healthService";
+import { supabase } from "@/integrations/supabase/client";
 import { Medication } from "@/types/health";
 import { useToast } from "@/hooks/use-toast";
 

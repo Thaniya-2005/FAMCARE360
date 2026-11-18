@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -58,6 +58,7 @@ const App = () => (
               }
             />
             {/* Redesigned Parent Application Routes */}
+            <Route path="/parent/home" element={<Navigate to="/parent" replace />} />
             <Route
               path="/parent"
               element={
@@ -115,6 +116,7 @@ const App = () => (
               }
             />
             {/* Redesigned Child Application Routes */}
+            <Route path="/child/home" element={<Navigate to="/child" replace />} />
             <Route
               path="/child"
               element={
