@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Heart, ArrowLeft, RefreshCw, Smile, Droplets, Moon, Zap, Pill, Shield,
   MessageCircle, AlertTriangle, TrendingUp, Activity, Footprints, Thermometer,
-  Lightbulb, BarChart2, Calendar, Users, Clock, MapPin
+  Lightbulb, BarChart2, Calendar, Users, Clock, MapPin, User, CheckCircle
 } from "lucide-react";
 import { HealthData, HealthStatus, calculateHealthStatus, calculateLifestyleScore, HEALTH_TIPS } from "@/types/health";
-
-const STORAGE_KEY = "famcare360_health_data";
+import { useAuth } from "@/contexts/AuthContext";
+import { healthService } from "@/services/healthService";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 function StatusBadge({ status }: { status: HealthStatus }) {
   const config = {
@@ -23,15 +25,31 @@ function StatusBadge({ status }: { status: HealthStatus }) {
   );
 }
 
-function MetricCard({ icon, label, value, note, warning }: {
-  icon: React.ReactNode; label: string; value: string; note?: string; warning?: boolean;
+function MetricCard({
+  icon,
+  label,
+  value,
+  note,
+  warning,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  note?: string;
+  warning?: boolean;
 }) {
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-xl border ${warning ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}>
+    <div
+      className={`flex items-start gap-3 p-3 rounded-xl border ${
+        warning ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"
+      }`}
+    >
       <div className="flex-shrink-0 mt-0.5">{icon}</div>
       <div className="min-w-0">
         <div className="text-xs text-muted-foreground font-medium">{label}</div>
-        <div className={`text-sm font-bold mt-0.5 ${warning ? "text-destructive" : "text-foreground"}`}>{value}</div>
+        <div className={`text-sm font-bold mt-0.5 ${warning ? "text-destructive" : "text-foreground"}`}>
+          {value}
+        </div>
         {note && <div className="text-xs text-muted-foreground mt-0.5">{note}</div>}
       </div>
     </div>
@@ -49,7 +67,15 @@ interface SectionCardProps {
 
 function SectionCard({ icon, title, iconBg, children, status, fullGrid }: SectionCardProps) {
   return (
-    <div className={`bg-card rounded-2xl p-5 shadow-card border ${status === "critical" ? "border-destructive/40" : status === "moderate" ? "border-amber-200" : "border-border"}`}>
+    <div
+      className={`bg-card rounded-2xl p-5 shadow-card border ${
+        status === "critical"
+          ? "border-destructive/40"
+          : status === "moderate"
+          ? "border-amber-200"
+          : "border-border"
+      }`}
+    >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 ${iconBg} rounded-xl flex items-center justify-center`}>
@@ -58,9 +84,11 @@ function SectionCard({ icon, title, iconBg, children, status, fullGrid }: Sectio
           <h3 className="font-bold text-foreground text-sm">{title}</h3>
         </div>
         {status && (
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-            status === "stable" ? "status-green" : status === "moderate" ? "status-yellow" : "status-red"
-          }`}>
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+              status === "stable" ? "status-green" : status === "moderate" ? "status-yellow" : "status-red"
+            }`}
+          >
             {status === "stable" ? "Good" : status === "moderate" ? "Watch" : "Alert"}
           </span>
         )}
@@ -73,6 +101,7 @@ function SectionCard({ icon, title, iconBg, children, status, fullGrid }: Sectio
 function moodLabel(score: number) {
   return ["😟 Very Low", "😕 Low", "😐 Neutral", "🙂 Good", "😊 Excellent"][score - 1] || "—";
 }
+
 function painLabel(v: number) {
   if (v === 0) return "No pain";
   if (v <= 2) return "Mild";
@@ -90,7 +119,9 @@ function WeeklyBar({ values, label, color }: { values: number[]; label: string; 
         {values.map((v, i) => (
           <div key={i} className="flex-1 flex flex-col items-center gap-1">
             <div
-              className={`w-full rounded-t-md transition-all ${i === values.length - 1 ? color : `${color} opacity-40`}`}
+              className={`w-full rounded-t-md transition-all ${
+                i === values.length - 1 ? color : `${color} opacity-40`
+              }`}
               style={{ height: `${(v / max) * 100}%`, minHeight: v > 0 ? "4px" : "0" }}
             />
             <span className="text-[10px] text-muted-foreground leading-none">{days[i]}</span>
@@ -105,19 +136,95 @@ type TabKey = "overview" | "wellness" | "medications" | "appointments" | "trends
 
 const ChildDashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
   const [data, setData] = useState<HealthData | null>(null);
+  const [historicalData, setHistoricalData] = useState<HealthData[]>([]);
   const [refreshTime, setRefreshTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [linkedParentId, setLinkedParentId] = useState<string | null>(null);
+  const [isResolvingSOS, setIsResolvingSOS] = useState(false);
 
-  const load = () => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { setData(JSON.parse(saved)); } catch {}
+  const load = useCallback(async () => {
+    let parentId: string | null = null;
+    if (user) {
+      parentId = await healthService.getLinkedParentId(user.id);
+      setLinkedParentId(parentId);
     }
-    setRefreshTime(new Date());
-  };
 
-  useEffect(() => { load(); }, []);
+    // Load today's report
+    const targetUserId = parentId || user?.id;
+    const report = await healthService.getTodayHealthReport(targetUserId);
+    if (report) {
+      // If we have parentId, load their medications and appointments
+      if (parentId) {
+        const meds = await healthService.getMedications(parentId);
+        const appts = await healthService.getAppointments(parentId);
+        report.medications = meds;
+        report.appointments = appts;
+      }
+      setData(report);
+    } else {
+      setData(null);
+    }
+
+    // Load historical reports for real weekly trends
+    if (targetUserId) {
+      const history = await healthService.getHistoricalHealthReports(targetUserId, 7);
+      setHistoricalData(history);
+    }
+
+    setRefreshTime(new Date());
+  }, [user]);
+
+  useEffect(() => {
+    load();
+
+    // Supabase Realtime channel for live synchronization
+    const channel = supabase
+      .channel("child_dashboard_sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "health_reports" },
+        () => {
+          load();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sos_alerts" },
+        () => {
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load]);
+
+  const handleAcknowledgeSOS = async () => {
+    if (!user || !data) return;
+    setIsResolvingSOS(true);
+    try {
+      if (data) {
+        setData({ ...data, sosActivated: false });
+        if (linkedParentId) {
+          await healthService.saveHealthReport(linkedParentId, { ...data, sosActivated: false });
+        }
+      }
+      toast({
+        title: "SOS Acknowledged ✅",
+        description: "Emergency incident marked as acknowledged.",
+      });
+    } catch {
+      toast({ title: "Note", description: "Updated locally." });
+    } finally {
+      setIsResolvingSOS(false);
+    }
+  };
 
   const status: HealthStatus = data ? calculateHealthStatus(data) : "stable";
   const hasRisks = data && status !== "stable";
@@ -142,10 +249,23 @@ const ChildDashboard = () => {
     if (data.stepsCount < 1000) riskAlerts.push("Very low step count");
   }
 
-  const moodWeek = data ? [3, 4, 2, 4, 5, data.moodScore, data.moodScore] : [3, 4, 2, 4, 5, 3, 3];
-  const stepsWeek = data ? [4200, 6500, 3000, 7200, 5500, data.stepsCount, data.stepsCount] : [4200, 6500, 3000, 7200, 5500, 0, 0];
-  const sleepWeek = data ? [6, 7, 5, 8, 7, data.sleepHours, data.sleepHours] : [6, 7, 5, 8, 7, 7, 7];
-  const hrWeek = data ? [75, 72, 80, 68, 73, data.heartRate, data.heartRate] : [75, 72, 80, 68, 73, 72, 72];
+  // Build actual historical arrays from real records
+  const buildTrendArray = (getter: (d: HealthData) => number, fallbackToday: number) => {
+    if (historicalData.length > 0) {
+      const arr = new Array(7).fill(0);
+      historicalData.slice(0, 7).reverse().forEach((d, idx) => {
+        arr[idx] = getter(d);
+      });
+      arr[6] = fallbackToday;
+      return arr;
+    }
+    return [0, 0, 0, 0, 0, fallbackToday, fallbackToday];
+  };
+
+  const moodWeek = data ? buildTrendArray((d) => d.moodScore, data.moodScore) : [0, 0, 0, 0, 0, 3, 3];
+  const stepsWeek = data ? buildTrendArray((d) => d.stepsCount, data.stepsCount) : [0, 0, 0, 0, 0, 0, 0];
+  const sleepWeek = data ? buildTrendArray((d) => d.sleepHours, data.sleepHours) : [0, 0, 0, 0, 0, 7, 7];
+  const hrWeek = data ? buildTrendArray((d) => d.heartRate, data.heartRate) : [0, 0, 0, 0, 0, 72, 72];
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "Overview", icon: <Activity className="w-3.5 h-3.5" /> },
@@ -161,9 +281,21 @@ const ChildDashboard = () => {
       {/* Header */}
       <div className="gradient-child px-6 pt-6 pb-8">
         <div className="max-w-xl mx-auto">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => navigate("/")}
+              className="flex items-center gap-2 text-white/80 hover:text-white text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            <button
+              onClick={() => navigate("/profile")}
+              className="flex items-center gap-1.5 text-xs text-white/90 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl transition-colors font-medium"
+            >
+              <User className="w-3.5 h-3.5" /> Profile Settings
+            </button>
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -174,7 +306,10 @@ const ChildDashboard = () => {
                 <p className="text-white/70 text-sm">Parent health overview</p>
               </div>
             </div>
-            <button onClick={load} className="flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-2 text-white text-xs hover:bg-white/30 transition-colors">
+            <button
+              onClick={load}
+              className="flex items-center gap-1.5 bg-white/20 rounded-xl px-3 py-2 text-white text-xs hover:bg-white/30 transition-colors"
+            >
               <RefreshCw className="w-3.5 h-3.5" />
               Refresh
             </button>
@@ -183,13 +318,17 @@ const ChildDashboard = () => {
       </div>
 
       <div className="max-w-xl mx-auto px-4 -mt-4 space-y-4">
-
         {!data && (
           <div className="bg-card rounded-2xl p-8 shadow-card border border-border text-center">
             <div className="text-4xl mb-3">📭</div>
             <h2 className="font-bold text-foreground mb-1">No updates yet</h2>
-            <p className="text-muted-foreground text-sm">Your parent hasn't submitted today's health report yet.</p>
-            <button onClick={load} className="mt-4 px-4 py-2 gradient-child text-white rounded-xl text-sm font-semibold">
+            <p className="text-muted-foreground text-sm">
+              Your parent hasn&apos;t submitted today&apos;s health report yet.
+            </p>
+            <button
+              onClick={load}
+              className="mt-4 px-4 py-2 gradient-child text-white rounded-xl text-sm font-semibold"
+            >
               Check Again
             </button>
           </div>
@@ -199,25 +338,43 @@ const ChildDashboard = () => {
           <>
             {/* SOS Alert */}
             {data.sosActivated && (
-              <div className="gradient-sos rounded-2xl p-5 flex items-start gap-4 shadow-sos">
-                <AlertTriangle className="w-7 h-7 text-white flex-shrink-0 mt-0.5 animate-bounce" />
-                <div>
-                  <div className="text-white font-bold text-lg">🚨 Emergency SOS Activated!</div>
-                  <div className="text-white/80 text-sm mt-1">Your parent has activated an emergency alert. Please contact them immediately or call for help.</div>
+              <div className="gradient-sos rounded-2xl p-5 flex items-start justify-between gap-4 shadow-sos">
+                <div className="flex items-start gap-4">
+                  <AlertTriangle className="w-7 h-7 text-white flex-shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <div className="text-white font-bold text-lg">🚨 Emergency SOS Activated!</div>
+                    <div className="text-white/80 text-sm mt-1">
+                      Your parent has triggered an emergency alert. Please contact them immediately.
+                    </div>
+                  </div>
                 </div>
+                <button
+                  disabled={isResolvingSOS}
+                  onClick={handleAcknowledgeSOS}
+                  className="px-3 py-1.5 rounded-xl bg-white text-destructive font-semibold text-xs shadow hover:bg-white/90 transition-opacity flex-shrink-0"
+                >
+                  <CheckCircle className="w-3.5 h-3.5 inline mr-1" />
+                  Acknowledge
+                </button>
               </div>
             )}
 
             {/* Health Risk Alert */}
             {hasRisks && riskAlerts.length > 0 && (
-              <div className={`rounded-2xl p-4 border ${status === "critical" ? "status-red" : "status-yellow"}`}>
+              <div
+                className={`rounded-2xl p-4 border ${
+                  status === "critical" ? "status-red" : "status-yellow"
+                }`}
+              >
                 <div className="flex items-center gap-2 font-bold text-sm mb-2">
                   <AlertTriangle className="w-4 h-4" />
                   Health Risk Detected — {riskAlerts.length} warning{riskAlerts.length > 1 ? "s" : ""}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {riskAlerts.map(r => (
-                    <span key={r} className="text-xs px-2 py-0.5 bg-white/50 rounded-full font-medium">{r}</span>
+                  {riskAlerts.map((r) => (
+                    <span key={r} className="text-xs px-2 py-0.5 bg-white/50 rounded-full font-medium">
+                      {r}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -230,7 +387,13 @@ const ChildDashboard = () => {
                 <StatusBadge status={status} />
               </div>
               <p className="text-xs text-muted-foreground">
-                Last updated: {new Date(data.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · Refreshed {refreshTime.toLocaleTimeString()}
+                Last updated:{" "}
+                {new Date(data.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}{" "}
+                · Refreshed {refreshTime.toLocaleTimeString()}
               </p>
               <div className="mt-3 flex items-center gap-4">
                 <div className="flex-1 bg-muted/40 rounded-xl p-3">
@@ -240,7 +403,10 @@ const ChildDashboard = () => {
                     <div className="text-xs text-muted-foreground mb-0.5">/100</div>
                   </div>
                   <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${lifestyleScore}%` }} />
+                    <div
+                      className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: `${lifestyleScore}%` }}
+                    />
                   </div>
                 </div>
                 <div className="flex-1 bg-muted/40 rounded-xl p-3">
@@ -250,7 +416,10 @@ const ChildDashboard = () => {
                     <div className="text-xs text-muted-foreground mb-0.5">/100</div>
                   </div>
                   <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${data.dietHabitsScore ?? 50}%` }} />
+                    <div
+                      className="h-full bg-accent rounded-full transition-all"
+                      style={{ width: `${data.dietHabitsScore ?? 50}%` }}
+                    />
                   </div>
                 </div>
               </div>
@@ -260,20 +429,39 @@ const ChildDashboard = () => {
             <div className="grid grid-cols-4 gap-2">
               {[
                 { emoji: data.medicationTaken ? "✅" : "❌", label: "Meds", warn: !data.medicationTaken },
-                { emoji: ["😟","😕","😐","🙂","😊"][data.moodScore-1], label: `Mood ${data.moodScore}/5`, warn: data.moodScore <= 2 },
+                {
+                  emoji: ["😟", "😕", "😐", "🙂", "😊"][data.moodScore - 1],
+                  label: `Mood ${data.moodScore}/5`,
+                  warn: data.moodScore <= 2,
+                },
                 { emoji: "😴", label: `${data.sleepHours}h sleep`, warn: data.sleepHours < 5 },
-                { emoji: "🚶", label: `${(data.stepsCount/1000).toFixed(1)}k steps`, warn: data.stepsCount < 1000 },
+                {
+                  emoji: "🚶",
+                  label: `${(data.stepsCount / 1000).toFixed(1)}k steps`,
+                  warn: data.stepsCount < 1000,
+                },
               ].map((s, i) => (
-                <div key={i} className={`rounded-xl p-2.5 text-center border ${s.warn ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>
+                <div
+                  key={i}
+                  className={`rounded-xl p-2.5 text-center border ${
+                    s.warn ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"
+                  }`}
+                >
                   <div className="text-xl">{s.emoji}</div>
-                  <div className={`text-[10px] font-medium mt-0.5 ${s.warn ? "text-destructive" : "text-muted-foreground"}`}>{s.label}</div>
+                  <div
+                    className={`text-[10px] font-medium mt-0.5 ${
+                      s.warn ? "text-destructive" : "text-muted-foreground"
+                    }`}
+                  >
+                    {s.label}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Tab Navigation — scrollable */}
+            {/* Tab Navigation */}
             <div className="bg-card rounded-2xl p-1.5 shadow-card border border-border flex gap-1 overflow-x-auto">
-              {tabs.map(tab => (
+              {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
@@ -292,149 +480,223 @@ const ChildDashboard = () => {
             {/* ============ OVERVIEW TAB ============ */}
             {activeTab === "overview" && (
               <>
-                {/* Vitals */}
                 <SectionCard
                   icon={<Activity className="w-5 h-5 text-white" />}
                   title="Vital Signs"
                   iconBg="bg-cyan-500"
-                  status={data.heartRate > 100 || data.heartRate < 50 || data.temperature > 99.5 ? "critical" : data.stepsCount < 2000 ? "moderate" : "stable"}
+                  status={
+                    data.heartRate > 100 || data.heartRate < 50 || data.temperature > 99.5
+                      ? "critical"
+                      : data.stepsCount < 2000
+                      ? "moderate"
+                      : "stable"
+                  }
                 >
-                  <MetricCard icon={<Heart className="w-4 h-4 text-destructive" />} label="Heart Rate" value={`${data.heartRate} bpm`} warning={data.heartRate > 100 || data.heartRate < 50} note={data.heartRate > 100 ? "Above normal" : data.heartRate < 50 ? "Below normal" : "Normal range"} />
-                  <MetricCard icon={<Thermometer className="w-4 h-4 text-accent" />} label="Temperature" value={`${data.temperature}°F`} warning={data.temperature > 99.5 || data.temperature < 97} note={data.temperature > 99.5 ? "Elevated" : "Normal"} />
-                  <MetricCard icon={<MapPin className="w-4 h-4 text-primary" />} label="Distance" value={`${data.distanceKm ?? 0} km`} />
-                  <MetricCard icon={<Activity className="w-4 h-4 text-amber-500" />} label="Active Calories" value={`${data.activeCalories ?? 0} kcal`} />
-                  <div className="col-span-2 bg-muted/30 rounded-xl p-3 flex items-center gap-4">
-                    <div className="relative w-14 h-14 flex-shrink-0">
-                      <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90">
-                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
-                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="hsl(var(--primary))" strokeWidth="3"
-                          strokeDasharray={`${Math.min((data.stepsCount / 8000) * 100, 100)} 100`} strokeLinecap="round" />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Footprints className="w-4 h-4 text-primary" />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-foreground">{data.stepsCount.toLocaleString()}</div>
-                      <div className="text-xs text-muted-foreground">steps today · Goal 8,000</div>
-                      <div className={`text-xs font-medium mt-0.5 ${data.stepsCount >= 8000 ? "text-primary" : data.stepsCount < 2000 ? "text-destructive" : "text-amber-500"}`}>
-                        {Math.round((data.stepsCount / 8000) * 100)}% of daily goal
-                      </div>
-                    </div>
-                  </div>
+                  <MetricCard
+                    icon={<Heart className="w-4 h-4 text-rose-500" />}
+                    label="Heart Rate"
+                    value={`${data.heartRate} bpm`}
+                    note="Normal: 60–100 bpm"
+                    warning={data.heartRate > 100 || data.heartRate < 50}
+                  />
+                  <MetricCard
+                    icon={<Thermometer className="w-4 h-4 text-amber-500" />}
+                    label="Temperature"
+                    value={`${data.temperature}°F`}
+                    note="Normal: 97–99°F"
+                    warning={data.temperature > 99.5}
+                  />
+                  <MetricCard
+                    icon={<Footprints className="w-4 h-4 text-cyan-500" />}
+                    label="Steps Today"
+                    value={data.stepsCount.toLocaleString()}
+                    note={`Goal: 8,000 (${Math.round((data.stepsCount / 8000) * 100)}%)`}
+                    warning={data.stepsCount < 1000}
+                  />
+                  <MetricCard
+                    icon={<Zap className="w-4 h-4 text-emerald-500" />}
+                    label="Calories Burned"
+                    value={`${data.activeCalories} kcal`}
+                    note={`${data.distanceKm} km walked`}
+                  />
+                </SectionCard>
+
+                {/* Safety & Living */}
+                <SectionCard
+                  icon={<Shield className="w-5 h-5 text-white" />}
+                  title="Safety & Daily Living"
+                  iconBg="bg-rose-400"
+                  status={data.hadFall || data.needsHelp ? "critical" : !data.feltSafe ? "moderate" : "stable"}
+                >
+                  <MetricCard
+                    icon={<Shield className="w-4 h-4 text-rose-500" />}
+                    label="Felt Safe at Home"
+                    value={data.feltSafe ? "Yes, safe" : "Felt unsafe"}
+                    warning={!data.feltSafe}
+                  />
+                  <MetricCard
+                    icon={<AlertTriangle className="w-4 h-4 text-destructive" />}
+                    label="Fall Incident"
+                    value={data.hadFall ? "⚠️ Fall reported!" : "No falls"}
+                    warning={data.hadFall}
+                  />
+                  <MetricCard
+                    icon={<MapPin className="w-4 h-4 text-amber-500" />}
+                    label="Home Hazards"
+                    value={data.homeHazards ? "Hazards noticed" : "No hazards"}
+                    warning={data.homeHazards}
+                  />
+                  <MetricCard
+                    icon={<Users className="w-4 h-4 text-primary" />}
+                    label="Needs Assistance"
+                    value={data.needsHelp ? "Needs help" : "Managing well"}
+                    warning={data.needsHelp}
+                  />
                 </SectionCard>
 
                 {/* Bonding Message */}
                 {data.bondingMessage && (
-                  <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center">
-                        <MessageCircle className="w-5 h-5 text-accent" />
-                      </div>
-                      <h3 className="font-bold text-foreground text-sm">Message from Parent 💙</h3>
+                  <div className="bg-card rounded-2xl p-5 shadow-card border border-pink-200 dark:border-pink-900">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageCircle className="w-5 h-5 text-pink-500" />
+                      <h3 className="font-bold text-foreground text-sm">Today&apos;s Message from Parent</h3>
                     </div>
-                    <blockquote className="text-foreground text-sm leading-relaxed bg-accent/5 border border-accent/20 rounded-xl p-4 italic">
-                      "{data.bondingMessage}"
-                    </blockquote>
+                    <p className="text-sm text-foreground bg-pink-50 dark:bg-pink-950/20 rounded-xl p-3 border border-pink-100 dark:border-pink-900/40 italic">
+                      &quot;{data.bondingMessage}&quot;
+                    </p>
                   </div>
                 )}
-
-                {/* Caregiver Notes */}
-                {data.caregiverNotes && (
-                  <div className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-3 items-start">
-                    <Users className="w-5 h-5 text-teal-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-sm font-semibold text-foreground mb-1">Notes for Family</div>
-                      <p className="text-sm text-muted-foreground">{data.caregiverNotes}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Safety */}
-                <SectionCard icon={<Shield className="w-5 h-5 text-white" />} title="Overall Safety" iconBg="bg-rose-400" status={data.hadFall || !data.feltSafe ? "critical" : data.needsHelp || data.homeHazards ? "moderate" : "stable"}>
-                  <MetricCard icon={<span className="text-lg">{data.feltSafe ? "🏠" : "⚠️"}</span>} label="Feeling safe" value={data.feltSafe ? "Yes" : "No"} warning={!data.feltSafe} />
-                  <MetricCard icon={<span className="text-lg">{data.hadFall ? "🚨" : "✅"}</span>} label="Had a fall" value={data.hadFall ? "YES - FELL" : "No fall"} warning={data.hadFall} />
-                  <MetricCard icon={<span className="text-lg">{data.needsHelp ? "🙏" : "✅"}</span>} label="Needs help" value={data.needsHelp ? "Yes" : "No"} warning={data.needsHelp} />
-                  <MetricCard icon={<span className="text-lg">{data.homeHazards ? "⚠️" : "✅"}</span>} label="Home hazards" value={data.homeHazards ? "Reported" : "None"} warning={data.homeHazards} />
-                  <MetricCard icon={<span className="text-lg">{data.usedWalkingAid ? "🦯" : "🚶"}</span>} label="Walking aid" value={data.usedWalkingAid ? "Used" : "Not needed"} />
-                </SectionCard>
               </>
             )}
 
             {/* ============ WELLNESS TAB ============ */}
             {activeTab === "wellness" && (
               <>
-                {/* Mental & Emotional */}
-                <SectionCard icon={<Smile className="w-5 h-5 text-white" />} title="Mental & Emotional Well-being" iconBg="bg-violet-400" status={data.moodScore <= 2 || data.stressLevel >= 4 || data.anxietyLevel >= 4 ? (data.moodScore === 1 ? "critical" : "moderate") : "stable"}>
-                  <MetricCard icon={<span className="text-lg">{["😟","😕","😐","🙂","😊"][data.moodScore-1]}</span>} label="Mood" value={moodLabel(data.moodScore)} warning={data.moodScore <= 2} />
-                  <MetricCard icon={<span className="text-lg">{data.stressLevel >= 4 ? "😰" : "😌"}</span>} label="Stress" value={`${data.stressLevel}/5`} warning={data.stressLevel >= 4} />
-                  <MetricCard icon={<span className="text-lg">{data.anxietyLevel >= 4 ? "😟" : "🧘"}</span>} label="Anxiety" value={`${data.anxietyLevel}/5`} warning={data.anxietyLevel >= 4} />
-                  <MetricCard icon={<span className="text-lg">{data.hadSocialInteractions ? "👥" : "🔇"}</span>} label="Social" value={data.hadSocialInteractions ? "Interacted" : "Isolated"} warning={!data.hadSocialInteractions} />
-                  <MetricCard icon={<span className="text-lg">{data.feelingLonely ? "💔" : "💙"}</span>} label="Loneliness" value={data.feelingLonely ? "Feeling lonely" : "Feeling connected"} warning={data.feelingLonely} />
-                  <MetricCard icon={<span className="text-lg">🌿</span>} label="Outdoor Time" value={`${data.outdoorTimeMinutes ?? 0} min`} />
-                  {data.emotionalNotes && (
-                    <div className="col-span-2 bg-muted/40 rounded-xl p-3 text-xs text-muted-foreground italic">
-                      "{data.emotionalNotes}"
-                    </div>
-                  )}
+                <SectionCard
+                  icon={<Smile className="w-5 h-5 text-white" />}
+                  title="Mental & Emotional"
+                  iconBg="bg-violet-400"
+                  status={data.moodScore <= 2 || data.stressLevel >= 4 ? "critical" : "stable"}
+                >
+                  <MetricCard
+                    icon={<Smile className="w-4 h-4 text-violet-500" />}
+                    label="Mood"
+                    value={moodLabel(data.moodScore)}
+                    warning={data.moodScore <= 2}
+                  />
+                  <MetricCard
+                    icon={<Activity className="w-4 h-4 text-amber-500" />}
+                    label="Stress Level"
+                    value={`${data.stressLevel}/5`}
+                    warning={data.stressLevel >= 4}
+                  />
+                  <MetricCard
+                    icon={<Zap className="w-4 h-4 text-indigo-500" />}
+                    label="Anxiety Level"
+                    value={`${data.anxietyLevel}/5`}
+                    warning={data.anxietyLevel >= 4}
+                  />
+                  <MetricCard
+                    icon={<Users className="w-4 h-4 text-emerald-500" />}
+                    label="Social Connection"
+                    value={data.feelingLonely ? "Feeling lonely" : "Connected"}
+                    warning={data.feelingLonely}
+                  />
                 </SectionCard>
 
-                {/* Food & Hydration */}
-                <SectionCard icon={<Droplets className="w-5 h-5 text-white" />} title="Food & Hydration" iconBg="bg-sky-400" status={data.mealsEaten <= 1 || data.waterIntake < 4 ? "moderate" : "stable"}>
-                  <MetricCard icon={<span className="text-lg">🍽️</span>} label="Meals eaten" value={`${data.mealsEaten}/3 meals`} warning={data.mealsEaten <= 1} />
-                  <MetricCard icon={<span className="text-lg">💧</span>} label="Water intake" value={`${data.waterIntake} cups`} warning={data.waterIntake < 4} />
-                  <MetricCard icon={<span className="text-lg">{data.ateBreakfast ? "✅" : "❌"}</span>} label="Breakfast" value={data.ateBreakfast ? "Eaten" : "Skipped"} warning={!data.ateBreakfast} />
-                  <MetricCard icon={<span className="text-lg">{data.ateLunch ? "✅" : "❌"}</span>} label="Lunch" value={data.ateLunch ? "Eaten" : "Skipped"} warning={!data.ateLunch} />
-                  <MetricCard icon={<span className="text-lg">{data.ateDinner ? "✅" : "❌"}</span>} label="Dinner" value={data.ateDinner ? "Eaten" : "Skipped"} warning={!data.ateDinner} />
-                  <MetricCard icon={<span className="text-lg">☕</span>} label="Caffeine" value={`${data.caffeineIntake ?? 0} cups`} />
-                  <MetricCard icon={<span className="text-lg">{data.hadFruitsVeggies ? "🥦" : "❌"}</span>} label="Fruits & Veg" value={data.hadFruitsVeggies ? "Had some" : "None today"} warning={!data.hadFruitsVeggies} />
-                  <MetricCard icon={<span className="text-lg">{data.tookVitamins ? "💊" : "—"}</span>} label="Vitamins" value={data.tookVitamins ? "Taken" : "Not taken"} />
-                  <MetricCard icon={<span className="text-lg">{data.appetiteGood ? "✅" : "❌"}</span>} label="Appetite" value={data.appetiteGood ? "Good" : "Poor"} warning={!data.appetiteGood} />
-                  <MetricCard icon={<span className="text-lg">🥗</span>} label="Diet Score" value={`${data.dietHabitsScore ?? 50}/100`} warning={(data.dietHabitsScore ?? 50) < 40} />
+                <SectionCard
+                  icon={<Moon className="w-5 h-5 text-white" />}
+                  title="Sleep & Rest"
+                  iconBg="bg-indigo-400"
+                  status={data.sleepHours < 5 ? "critical" : data.sleepHours < 6 ? "moderate" : "stable"}
+                >
+                  <MetricCard
+                    icon={<Moon className="w-4 h-4 text-indigo-500" />}
+                    label="Sleep Duration"
+                    value={`${data.sleepHours} hrs`}
+                    note={`Quality: ${data.sleepQuality}/5`}
+                    warning={data.sleepHours < 5}
+                  />
+                  <MetricCard
+                    icon={<Clock className="w-4 h-4 text-blue-500" />}
+                    label="Schedule"
+                    value={`${data.wakeUpTime || "7 AM"}`}
+                    note={`Bedtime: ${data.sleepInBedTime || "10 PM"}`}
+                  />
+                  <MetricCard
+                    icon={<Activity className="w-4 h-4 text-purple-500" />}
+                    label="Deep Sleep"
+                    value={`${data.deepSleepHours}h`}
+                    note={`Awake: ${data.awakeDuringNight} min`}
+                  />
+                  <MetricCard
+                    icon={<Smile className="w-4 h-4 text-teal-500" />}
+                    label="Felt Rested"
+                    value={data.feltRestedAfterSleep ? "Yes, refreshed" : "Tired"}
+                    warning={!data.feltRestedAfterSleep}
+                  />
                 </SectionCard>
 
-                {/* Sleep */}
-                <SectionCard icon={<Moon className="w-5 h-5 text-white" />} title="Sleep & Rest" iconBg="bg-indigo-400" status={data.sleepHours < 5 || data.sleepQuality <= 2 ? (data.sleepHours < 4 ? "critical" : "moderate") : "stable"} fullGrid>
-                  <div className="grid grid-cols-2 gap-2">
-                    <MetricCard icon={<span className="text-lg">🌙</span>} label="Sleep duration" value={`${data.sleepHours} hours`} warning={data.sleepHours < 5} />
-                    <MetricCard icon={<span className="text-lg">{["😴","😴","😐","😊","⭐"][data.sleepQuality-1]}</span>} label="Sleep quality" value={`${data.sleepQuality}/5`} warning={data.sleepQuality <= 2} />
-                    <MetricCard icon={<span className="text-lg">⏰</span>} label="Wake Up" value={data.wakeUpTime || "Not set"} />
-                    <MetricCard icon={<span className="text-lg">🛌</span>} label="Bedtime" value={data.sleepInBedTime || "Not set"} />
-                    <MetricCard icon={<span className="text-lg">{data.feltRestedAfterSleep ? "✅" : "❌"}</span>} label="Felt rested?" value={data.feltRestedAfterSleep ? "Yes" : "No"} warning={!data.feltRestedAfterSleep} />
-                    <MetricCard icon={<span className="text-lg">{data.snoringConcerns ? "⚠️" : "✅"}</span>} label="Snoring?" value={data.snoringConcerns ? "Reported" : "No concerns"} warning={data.snoringConcerns} />
-                  </div>
-                  <div className="bg-muted/30 rounded-xl p-3">
-                    <div className="text-xs font-semibold text-muted-foreground mb-2">Sleep Breakdown</div>
-                    <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-primary font-medium">Deep Sleep</span>
-                        <span className="font-bold">{data.deepSleepHours ?? 0}h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground font-medium">Light Sleep</span>
-                        <span className="font-bold">{data.lightSleepHours ?? 0}h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-accent font-medium">REM</span>
-                        <span className="font-bold">{data.remSleepHours ?? 0}h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Awake</span>
-                        <span className="font-bold">{data.awakeDuringNight ?? 0}m</span>
-                      </div>
-                    </div>
-                  </div>
-                  <MetricCard icon={<span className="text-lg">☀️</span>} label="Daytime nap" value={data.hadNap ? "Yes" : "No"} />
+                <SectionCard
+                  icon={<Droplets className="w-5 h-5 text-white" />}
+                  title="Food & Hydration"
+                  iconBg="bg-sky-400"
+                  status={data.mealsEaten <= 1 || data.waterIntake < 4 ? "moderate" : "stable"}
+                >
+                  <MetricCard
+                    icon={<Droplets className="w-4 h-4 text-sky-500" />}
+                    label="Meals Eaten"
+                    value={`${data.mealsEaten} of 3 meals`}
+                    warning={data.mealsEaten <= 1}
+                  />
+                  <MetricCard
+                    icon={<Droplets className="w-4 h-4 text-blue-500" />}
+                    label="Water Intake"
+                    value={`${data.waterIntake} cups`}
+                    note="Goal: 8 cups"
+                    warning={data.waterIntake < 4}
+                  />
+                  <MetricCard
+                    icon={<Activity className="w-4 h-4 text-emerald-500" />}
+                    label="Appetite"
+                    value={data.appetiteGood ? "Good" : "Poor appetite"}
+                    warning={!data.appetiteGood}
+                  />
+                  <MetricCard
+                    icon={<Zap className="w-4 h-4 text-amber-500" />}
+                    label="Vitamins & Greens"
+                    value={data.hadFruitsVeggies ? "Had fruits/veg" : "None"}
+                  />
                 </SectionCard>
 
-                {/* Physical */}
-                <SectionCard icon={<Zap className="w-5 h-5 text-white" />} title="Physical Activity & Comfort" iconBg="bg-amber-400" status={data.mobilityLevel <= 2 || data.painLevel >= 4 ? (data.painLevel === 5 ? "critical" : "moderate") : "stable"}>
-                  <MetricCard icon={<span className="text-lg">🚶</span>} label="Mobility" value={`${data.mobilityLevel}/5`} warning={data.mobilityLevel <= 2} />
-                  <MetricCard icon={<span className="text-lg">{data.painLevel >= 4 ? "🤕" : "💪"}</span>} label="Pain level" value={painLabel(data.painLevel)} warning={data.painLevel >= 4} />
-                  <MetricCard icon={<span className="text-lg">⏱️</span>} label="Exercise" value={`${data.exerciseMinutes} min`} />
-                  <MetricCard icon={<span className="text-lg">{data.didStretching ? "🧘" : "—"}</span>} label="Stretching" value={data.didStretching ? "Done" : "Not today"} />
-                  <MetricCard icon={<span className="text-lg">{data.didPhysicalTherapy ? "🏥" : "—"}</span>} label="Physical Therapy" value={data.didPhysicalTherapy ? "Done" : "Not today"} />
-                  <MetricCard icon={<span className="text-lg">{data.usedWalkingAid ? "🦯" : "🚶"}</span>} label="Walking Aid" value={data.usedWalkingAid ? "Used" : "Not needed"} />
+                <SectionCard
+                  icon={<Zap className="w-5 h-5 text-white" />}
+                  title="Physical Activity"
+                  iconBg="bg-amber-400"
+                  status={data.painLevel >= 4 ? "critical" : "stable"}
+                >
+                  <MetricCard
+                    icon={<Activity className="w-4 h-4 text-amber-500" />}
+                    label="Mobility Level"
+                    value={`${data.mobilityLevel}/5`}
+                    warning={data.mobilityLevel <= 2}
+                  />
+                  <MetricCard
+                    icon={<AlertTriangle className="w-4 h-4 text-rose-500" />}
+                    label="Pain Level"
+                    value={painLabel(data.painLevel)}
+                    warning={data.painLevel >= 3}
+                  />
+                  <MetricCard
+                    icon={<Footprints className="w-4 h-4 text-cyan-500" />}
+                    label="Exercise Duration"
+                    value={`${data.exerciseMinutes} min`}
+                  />
+                  <MetricCard
+                    icon={<Zap className="w-4 h-4 text-emerald-500" />}
+                    label="Walking Aid"
+                    value={data.usedWalkingAid ? "Used aid" : "Unaided"}
+                  />
                 </SectionCard>
               </>
             )}
@@ -442,60 +704,51 @@ const ChildDashboard = () => {
             {/* ============ MEDICATIONS TAB ============ */}
             {activeTab === "medications" && (
               <>
-                <SectionCard icon={<Pill className="w-5 h-5 text-white" />} title="Medicines & Monitoring" iconBg="bg-emerald-400" status={!data.medicationTaken ? "critical" : "stable"} fullGrid>
-                  <MetricCard icon={<span className="text-lg">{data.medicationTaken ? "✅" : "❌"}</span>} label="All Medications" value={data.medicationTaken ? "Taken today" : "Not all taken"} warning={!data.medicationTaken} />
-                  <MetricCard icon={<span className="text-lg">❤️</span>} label="Blood pressure" value={data.bloodPressure || "Not recorded"} />
-                  <MetricCard icon={<span className="text-lg">🩸</span>} label="Blood sugar" value={data.bloodSugar || "Not recorded"} />
-                  <MetricCard icon={<span className="text-lg">🫀</span>} label="Cholesterol" value={data.cholesterol || "Not recorded"} />
-                  <MetricCard icon={<span className="text-lg">💉</span>} label="Diabetes (Glucose)" value={data.diabetesReading || "Not recorded"} />
-                </SectionCard>
-
-                {/* Medication Schedule */}
-                {data.medications && data.medications.length > 0 && (
-                  <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-9 h-9 bg-emerald-400 rounded-xl flex items-center justify-center">
+                <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center">
                         <Pill className="w-5 h-5 text-white" />
                       </div>
-                      <h3 className="font-bold text-foreground text-sm">Medication Schedule</h3>
+                      <h3 className="font-bold text-foreground">Medication Status</h3>
                     </div>
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        data.medicationTaken ? "status-green" : "status-red"
+                      }`}
+                    >
+                      {data.medicationTaken ? "All Taken ✅" : "Missed Dose ⚠️"}
+                    </span>
+                  </div>
+
+                  {data.medications && data.medications.length > 0 ? (
                     <div className="space-y-2">
-                      {data.medications.map((med, i) => (
-                        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${med.taken ? "border-primary/20 bg-primary/5" : "border-border bg-muted/20"}`}>
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${med.taken ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                            {med.taken ? "✓" : "○"}
+                      {data.medications.map((m, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-foreground">{m.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {m.dose} · {m.time} · {m.frequency}
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-foreground">{med.name}</div>
-                            <div className="text-xs text-muted-foreground">{med.dose} · {med.time} · {med.frequency}</div>
-                          </div>
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${med.taken ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {med.taken ? "Taken" : "Pending"}
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              m.taken ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                            }`}
+                          >
+                            {m.taken ? "Taken" : "Pending"}
                           </span>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No specific medications logged today.</p>
+                  )}
+                </div>
 
-                {/* Allergies */}
-                {data.allergies && (
-                  <div className="bg-card rounded-2xl p-4 shadow-card border border-destructive/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">⚠️</span>
-                      <span className="font-semibold text-sm text-foreground">Known Allergies</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {data.allergies.split(",").map((a, i) => (
-                        <span key={i} className="text-xs px-2.5 py-1 bg-destructive/10 text-destructive border border-destructive/20 rounded-full font-medium">
-                          {a.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Side Effects */}
                 {data.medicationSideEffects && (
                   <div className="bg-card rounded-2xl p-4 shadow-card border border-amber-200">
                     <div className="flex items-center gap-2 mb-2">
@@ -520,10 +773,15 @@ const ChildDashboard = () => {
                         </div>
                         <h3 className="font-bold text-foreground">Upcoming Appointments</h3>
                       </div>
-                      <p className="text-xs text-muted-foreground">{data.appointments.length} appointment{data.appointments.length > 1 ? "s" : ""} scheduled</p>
+                      <p className="text-xs text-muted-foreground">
+                        {data.appointments.length} appointment{data.appointments.length > 1 ? "s" : ""} scheduled
+                      </p>
                     </div>
                     {data.appointments.map((appt, i) => (
-                      <div key={i} className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-4 items-start">
+                      <div
+                        key={i}
+                        className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-4 items-start"
+                      >
                         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-950/30 rounded-xl flex items-center justify-center flex-shrink-0">
                           <Calendar className="w-5 h-5 text-blue-500" />
                         </div>
@@ -532,9 +790,13 @@ const ChildDashboard = () => {
                           <div className="text-sm text-muted-foreground">Dr. {appt.doctor}</div>
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <Clock className="w-3.5 h-3.5 text-primary" />
-                            <span className="text-xs text-primary font-medium">{appt.date} {appt.time && `· ${appt.time}`}</span>
+                            <span className="text-xs text-primary font-medium">
+                              {appt.date} {appt.time && `· ${appt.time}`}
+                            </span>
                           </div>
-                          {appt.notes && <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>}
+                          {appt.notes && (
+                            <p className="text-xs text-muted-foreground mt-1 italic">{appt.notes}</p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -543,7 +805,9 @@ const ChildDashboard = () => {
                   <div className="bg-card rounded-2xl p-8 shadow-card border border-border text-center">
                     <div className="text-4xl mb-3">📅</div>
                     <h2 className="font-bold text-foreground mb-1">No appointments</h2>
-                    <p className="text-muted-foreground text-sm">Your parent hasn't added any upcoming appointments yet.</p>
+                    <p className="text-muted-foreground text-sm">
+                      Your parent hasn&apos;t added any upcoming appointments yet.
+                    </p>
                   </div>
                 )}
               </>
@@ -558,32 +822,52 @@ const ChildDashboard = () => {
                   </div>
                   <h3 className="font-bold text-foreground">Weekly Health Trends</h3>
                 </div>
-                <p className="text-xs text-muted-foreground -mt-2">Tracking this week's patterns at a glance</p>
+                <p className="text-xs text-muted-foreground -mt-2">Tracking this week&apos;s patterns at a glance</p>
 
                 <WeeklyBar values={moodWeek} label="Mood (1–5)" color="bg-violet-400" />
                 <div className="h-px bg-border" />
-                <WeeklyBar values={stepsWeek.map(v => Math.round(v / 100))} label="Steps (hundreds)" color="bg-cyan-500" />
+                <WeeklyBar
+                  values={stepsWeek.map((v) => Math.round(v / 100))}
+                  label="Steps (hundreds)"
+                  color="bg-cyan-500"
+                />
                 <div className="h-px bg-border" />
                 <WeeklyBar values={sleepWeek} label="Sleep Hours" color="bg-indigo-400" />
                 <div className="h-px bg-border" />
-                <WeeklyBar values={hrWeek.map(v => Math.round(v / 10))} label="Heart Rate (÷10)" color="bg-rose-400" />
+                <WeeklyBar
+                  values={hrWeek.map((v) => Math.round(v / 10))}
+                  label="Heart Rate (÷10)"
+                  color="bg-rose-400"
+                />
 
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Mood</div>
-                    <div className="text-lg font-bold text-primary">{(moodWeek.reduce((a, b) => a + b, 0) / moodWeek.length).toFixed(1)}/5</div>
+                    <div className="text-lg font-bold text-primary">
+                      {(moodWeek.reduce((a, b) => a + b, 0) / (moodWeek.filter((v) => v > 0).length || 1)).toFixed(1)}/5
+                    </div>
                   </div>
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Steps</div>
-                    <div className="text-lg font-bold text-primary">{Math.round(stepsWeek.reduce((a, b) => a + b, 0) / stepsWeek.length).toLocaleString()}</div>
+                    <div className="text-lg font-bold text-primary">
+                      {Math.round(
+                        stepsWeek.reduce((a, b) => a + b, 0) / (stepsWeek.filter((v) => v > 0).length || 1)
+                      ).toLocaleString()}
+                    </div>
                   </div>
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Sleep</div>
-                    <div className="text-lg font-bold text-foreground">{(sleepWeek.reduce((a, b) => a + b, 0) / sleepWeek.length).toFixed(1)}h</div>
+                    <div className="text-lg font-bold text-foreground">
+                      {(sleepWeek.reduce((a, b) => a + b, 0) / (sleepWeek.filter((v) => v > 0).length || 1)).toFixed(1)}h
+                    </div>
                   </div>
                   <div className="bg-muted/30 rounded-xl p-3 text-center">
                     <div className="text-xs text-muted-foreground mb-1">Avg Heart Rate</div>
-                    <div className="text-lg font-bold text-destructive">{Math.round(hrWeek.reduce((a, b) => a + b, 0) / hrWeek.length)} bpm</div>
+                    <div className="text-lg font-bold text-destructive">
+                      {Math.round(
+                        hrWeek.reduce((a, b) => a + b, 0) / (hrWeek.filter((v) => v > 0).length || 1)
+                      )} bpm
+                    </div>
                   </div>
                 </div>
               </div>
@@ -602,7 +886,10 @@ const ChildDashboard = () => {
                   <p className="text-xs text-muted-foreground">Helpful reminders to share with your parent 💙</p>
                 </div>
                 {HEALTH_TIPS.map((tip, i) => (
-                  <div key={i} className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-3 items-start">
+                  <div
+                    key={i}
+                    className="bg-card rounded-2xl p-4 shadow-card border border-border flex gap-3 items-start"
+                  >
                     <div className="text-2xl flex-shrink-0">{tip.emoji}</div>
                     <p className="text-sm text-foreground leading-relaxed">{tip.tip}</p>
                   </div>

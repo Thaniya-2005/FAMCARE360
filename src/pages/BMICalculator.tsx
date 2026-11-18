@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart, Calculator, Dumbbell, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, Calculator, Target, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface WorkoutDay {
   day: string;
@@ -145,6 +146,7 @@ function generateWorkoutPlan(goal: string, level: string, bmi: number): WorkoutD
 
 const BMICalculator = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [height, setHeight] = useState("");
@@ -159,7 +161,14 @@ const BMICalculator = () => {
     const h = parseFloat(height) / 100;
     const w = parseFloat(weight);
     const a = parseInt(age);
-    if (!h || !w || !a || !gender || !activityLevel || !fitnessGoal) return;
+    if (!h || !w || !a || !gender || !activityLevel || !fitnessGoal) {
+      toast({
+        title: "Please complete all fields",
+        description: "Age, gender, height, weight, activity level, and fitness goal are required.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const bmiVal = w / (h * h);
     setBmi(Math.round(bmiVal * 10) / 10);

@@ -1,9 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { Heart, Shield, ChevronRight, Activity, Bell, Users, Calculator, UtensilsCrossed, Dumbbell, BarChart2 } from "lucide-react";
+import {
+  Shield, ChevronRight, Activity, Bell, Users, Calculator, UtensilsCrossed,
+  Dumbbell, BarChart2, User, LogIn
+} from "lucide-react";
 import heroImage from "@/assets/hero-family.png";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
 
   const features = [
     { icon: Activity, label: "Daily Health Tracking", desc: "Vitals, mood, sleep & more" },
@@ -24,10 +29,42 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-6 py-4 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 gradient-hero rounded-xl flex items-center justify-center shadow-card font-bold text-2xl">FC</div>
-          <span className="text-xl font-bold text-foreground tracking-tight">FamCare<span className="text-primary">360</span></span>
+      <header className="px-6 py-4 flex items-center justify-between max-w-5xl mx-auto w-full">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
+          <div className="w-9 h-9 gradient-hero rounded-xl flex items-center justify-center shadow-card font-bold text-2xl text-white">
+            FC
+          </div>
+          <span className="text-xl font-bold text-foreground tracking-tight">
+            FamCare<span className="text-primary">360</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {user ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate(profile?.role === "child" ? "/child" : "/parent")}
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => navigate("/profile")}
+                className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-foreground hover:bg-muted/80 transition-colors"
+                title="Profile Settings"
+              >
+                <User className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary text-white hover:opacity-90 transition-opacity"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign In
+            </button>
+          )}
         </div>
       </header>
 
@@ -45,7 +82,9 @@ const Index = () => {
 
         <div className="mb-3 inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full">
           <Shield className="w-3.5 h-3.5 text-primary" />
-          <span className="text-xs font-semibold text-primary uppercase tracking-wide">Smart Family Health Monitoring</span>
+          <span className="text-xs font-semibold text-primary uppercase tracking-wide">
+            Smart Family Health Monitoring
+          </span>
         </div>
 
         <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-3 leading-tight">
@@ -59,11 +98,16 @@ const Index = () => {
         {/* Features grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8 w-full max-w-lg">
           {features.map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="flex flex-col items-center gap-1.5 p-3 bg-card rounded-xl border border-border shadow-sm">
+            <div
+              key={label}
+              className="flex flex-col items-center gap-1.5 p-3 bg-card rounded-xl border border-border shadow-sm"
+            >
               <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
                 <Icon className="w-4 h-4 text-primary" />
               </div>
-              <span className="text-xs font-semibold text-foreground text-center leading-tight">{label}</span>
+              <span className="text-xs font-semibold text-foreground text-center leading-tight">
+                {label}
+              </span>
               <span className="text-[10px] text-muted-foreground text-center">{desc}</span>
             </div>
           ))}
@@ -71,9 +115,11 @@ const Index = () => {
 
         {/* Quick Access Tools */}
         <div className="w-full max-w-sm mb-8">
-          <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Quick Access Tools</p>
+          <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+            Quick Access Tools
+          </p>
           <div className="grid grid-cols-4 gap-2">
-            {quickLinks.map(link => (
+            {quickLinks.map((link) => (
               <button
                 key={link.path}
                 onClick={() => navigate(link.path)}
@@ -82,7 +128,9 @@ const Index = () => {
                 <div className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}>
                   <span className="text-lg">{link.emoji}</span>
                 </div>
-                <span className="text-[10px] font-semibold text-foreground text-center leading-tight">{link.label}</span>
+                <span className="text-[10px] font-semibold text-foreground text-center leading-tight">
+                  {link.label}
+                </span>
               </button>
             ))}
           </div>
@@ -90,10 +138,12 @@ const Index = () => {
 
         {/* Role Selection */}
         <div className="w-full max-w-sm">
-          <p className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wide">Choose your role to continue</p>
+          <p className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wide">
+            Choose your role to continue
+          </p>
           <div className="flex flex-col gap-4">
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/login", { state: { role: "parent" } })}
               className="group relative w-full gradient-parent text-white rounded-2xl p-5 flex items-center justify-between shadow-card hover:shadow-hover transition-all duration-300 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-4">
@@ -109,7 +159,7 @@ const Index = () => {
             </button>
 
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/login", { state: { role: "child" } })}
               className="group relative w-full gradient-child text-white rounded-2xl p-5 flex items-center justify-between shadow-card hover:shadow-hover transition-all duration-300 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-4">

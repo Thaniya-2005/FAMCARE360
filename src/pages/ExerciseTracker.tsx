@@ -1,7 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Dumbbell, Play, RotateCcw, Check, Timer, Flame, TrendingUp, Trophy } from "lucide-react";
+import {
+  ArrowLeft, Dumbbell, Play, RotateCcw, Check, Timer, Flame, TrendingUp
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  healthService, ExerciseLogItem, DayExercises, EXERCISE_STORAGE_KEY
+} from "@/services/healthService";
 
 interface Exercise {
   id: string;
@@ -11,25 +17,6 @@ interface Exercise {
   caloriesPer10: number; // calories burned per 10 reps/min
   icon: string;
 }
-
-interface ExerciseLog {
-  exerciseId: string;
-  name: string;
-  sets: { reps: number; completed: boolean }[];
-  totalReps: number;
-  caloriesBurned: number;
-  duration: number; // seconds
-  timestamp: string;
-}
-
-interface DayExercises {
-  date: string;
-  logs: ExerciseLog[];
-  totalCalories: number;
-  totalDuration: number;
-}
-
-const EXERCISE_STORAGE_KEY = "famcare360_exercises";
 
 const EXERCISES: Exercise[] = [
   { id: "push-ups", name: "Push-ups", category: "Upper Body", targetMuscle: "Chest, Triceps", caloriesPer10: 8, icon: "💪" },
@@ -50,12 +37,19 @@ const EXERCISES: Exercise[] = [
   { id: "alt-dumbbell-curls", name: "Alt. Dumbbell Curls", category: "Upper Body", targetMuscle: "Biceps", caloriesPer10: 6, icon: "💪" },
 ];
 
-const CATEGORIES = [...new Set(EXERCISES.map(e => e.category))];
+const CATEGORIES = ["All", ...new Set(EXERCISES.map((e) => e.category))];
 
 const ExerciseTracker = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const today = new Date().toISOString().split("T")[0];
-  const [dayData, setDayData] = useState<DayExercises>({ date: today, logs: [], totalCalories: 0, totalDuration: 0 });
+
+  const [dayData, setDayData] = useState<DayExercises>({
+    date: today,
+    logs: [],
+    totalCalories: 0,
+    totalDuration: 0,
+  });
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [isActive, setIsActive] = useState(false);
@@ -64,15 +58,14 @@ const ExerciseTracker = () => {
   const [timer, setTimer] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const loadExercises = useCallback(async () => {
+    const data = await healthService.getExercises(user?.id, today);
+    setDayData(data);
+  }, [user, today]);
+
   useEffect(() => {
-    const saved = localStorage.getItem(EXERCISE_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed: DayExercises = JSON.parse(saved);
-        if (parsed.date === today) setDayData(parsed);
-      } catch {}
-    }
-  }, []);
+    loadExercises();
+  }, [loadExercises]);
 
   const save = (d: DayExercises) => {
     setDayData(d);
@@ -85,29 +78,31 @@ const ExerciseTracker = () => {
     setCurrentReps(0);
     setCurrentSets([]);
     setTimer(0);
-    timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setTimer((t) => t + 1), 1000);
   };
 
-  const addRep = () => setCurrentReps(r => r + 1);
+  const addRep = () => setCurrentReps((r) => r + 1);
 
   const completeSet = () => {
     if (currentReps === 0) return;
-    setCurrentSets(s => [...s, { reps: currentReps, completed: true }]);
+    setCurrentSets((s) => [...s, { reps: currentReps, completed: true }]);
     setCurrentReps(0);
   };
 
-  const finishExercise = () => {
+  const finishExercise = async () => {
     if (!selectedExercise) return;
     if (timerRef.current) clearInterval(timerRef.current);
 
-    const allSets = currentReps > 0
-      ? [...currentSets, { reps: currentReps, completed: true }]
-      : currentSets;
-    
+    const allSets =
+      currentReps > 0
+        ? [...currentSets, { reps: currentReps, completed: true }]
+        : currentSets;
+
     const totalReps = allSets.reduce((s, set) => s + set.reps, 0);
     const caloriesBurned = Math.round((totalReps / 10) * selectedExercise.caloriesPer10);
 
-    const log: ExerciseLog = {
+    const log: ExerciseLogItem = {
       exerciseId: selectedExercise.id,
       name: selectedExercise.name,
       sets: allSets,
@@ -124,6 +119,11 @@ const ExerciseTracker = () => {
       totalDuration: dayData.totalDuration + timer,
     };
     save(updated);
+
+    if (user) {
+      await healthService.saveExercise(user.id, log, today);
+    }
+
     resetExercise();
   };
 
@@ -136,15 +136,24 @@ const ExerciseTracker = () => {
     setTimer(0);
   };
 
-  const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60)
+      .toString()
+      .padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
-  const filtered = activeCategory === "All" ? EXERCISES : EXERCISES.filter(e => e.category === activeCategory);
+  const filtered =
+    activeCategory === "All"
+      ? EXERCISES
+      : EXERCISES.filter((e) => e.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-background pb-10">
       <div className="gradient-hero px-6 pt-6 pb-8">
         <div className="max-w-xl mx-auto">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm"
+          >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="flex items-center gap-3">
@@ -153,161 +162,153 @@ const ExerciseTracker = () => {
             </div>
             <div>
               <h1 className="text-white font-bold text-xl">Exercise Tracker</h1>
-              <p className="text-white/70 text-sm">Select, track reps & burn calories</p>
+              <p className="text-white/70 text-sm">
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-xl mx-auto px-4 -mt-4 space-y-4">
-        {/* Today's Stats */}
+        {/* Day Summary */}
         <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
-          <h2 className="font-bold text-foreground mb-3">Today's Workout Summary</h2>
+          <h2 className="font-bold text-foreground mb-3">Today&apos;s Workout Stats</h2>
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-muted/30 rounded-xl p-3 text-center">
-              <Flame className="w-5 h-5 text-accent mx-auto mb-1" />
-              <div className="text-xl font-bold text-foreground">{dayData.totalCalories}</div>
-              <div className="text-[10px] text-muted-foreground">Calories</div>
+              <div className="text-2xl font-bold text-primary">{dayData.logs.length}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Exercises</div>
             </div>
             <div className="bg-muted/30 rounded-xl p-3 text-center">
-              <Timer className="w-5 h-5 text-primary mx-auto mb-1" />
-              <div className="text-xl font-bold text-foreground">{formatTime(dayData.totalDuration)}</div>
-              <div className="text-[10px] text-muted-foreground">Duration</div>
+              <div className="text-2xl font-bold text-accent">{dayData.totalCalories}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Calories Burned</div>
             </div>
             <div className="bg-muted/30 rounded-xl p-3 text-center">
-              <Trophy className="w-5 h-5 text-amber-500 mx-auto mb-1" />
-              <div className="text-xl font-bold text-foreground">{dayData.logs.length}</div>
-              <div className="text-[10px] text-muted-foreground">Exercises</div>
+              <div className="text-2xl font-bold text-foreground">
+                {Math.round(dayData.totalDuration / 60)}m
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">Total Time</div>
             </div>
           </div>
         </div>
 
-        {/* Active Exercise Session */}
+        {/* Active Exercise Modal / Control */}
         {isActive && selectedExercise && (
-          <div className="bg-card rounded-2xl p-5 shadow-card border-2 border-primary">
-            <div className="text-center mb-4">
-              <div className="text-4xl mb-2">{selectedExercise.icon}</div>
-              <h2 className="font-bold text-foreground text-lg">{selectedExercise.name}</h2>
-              <p className="text-xs text-muted-foreground">{selectedExercise.targetMuscle}</p>
-            </div>
-
-            {/* Timer */}
-            <div className="text-center mb-4">
-              <div className="text-3xl font-mono font-bold text-primary">{formatTime(timer)}</div>
-            </div>
-
-            {/* Rep counter */}
-            <div className="bg-muted/30 rounded-xl p-4 mb-4">
-              <div className="text-center mb-3">
-                <div className="text-sm font-semibold text-muted-foreground">REPS</div>
-                <div className="text-5xl font-bold text-foreground">{currentReps}</div>
+          <div className="bg-card rounded-2xl p-5 shadow-card border-2 border-primary space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{selectedExercise.icon}</span>
+                <div>
+                  <h3 className="font-bold text-foreground text-lg">{selectedExercise.name}</h3>
+                  <span className="text-xs text-muted-foreground">{selectedExercise.targetMuscle}</span>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={addRep} className="flex-1 gradient-hero text-white font-bold text-lg py-6">
+              <div className="flex items-center gap-1.5 bg-primary/10 text-primary font-mono font-bold text-lg px-3 py-1.5 rounded-xl">
+                <Timer className="w-5 h-5" />
+                {formatTime(timer)}
+              </div>
+            </div>
+
+            {/* Reps and Sets */}
+            <div className="bg-muted/30 rounded-xl p-4 flex items-center justify-around">
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground uppercase font-semibold">Current Set Reps</div>
+                <div className="text-4xl font-extrabold text-primary my-1">{currentReps}</div>
+                <Button size="sm" onClick={addRep} className="gradient-hero text-white font-bold px-4">
                   +1 Rep
                 </Button>
-                <Button onClick={completeSet} variant="outline" className="flex-1 font-bold text-lg py-6">
-                  End Set
+              </div>
+
+              <div className="text-center border-l border-border pl-6">
+                <div className="text-xs text-muted-foreground uppercase font-semibold">Completed Sets</div>
+                <div className="text-2xl font-bold text-foreground my-2">{currentSets.length} sets</div>
+                <Button size="sm" variant="outline" onClick={completeSet}>
+                  <Check className="w-4 h-4 mr-1" /> Finish Set
                 </Button>
               </div>
             </div>
 
-            {/* Completed sets */}
-            {currentSets.length > 0 && (
-              <div className="mb-4 space-y-1">
-                <div className="text-xs font-semibold text-muted-foreground uppercase">Completed Sets</div>
-                {currentSets.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-primary/5 rounded-lg px-3 py-1.5">
-                    <Check className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-sm text-foreground">Set {i + 1}: {s.reps} reps</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
             <div className="flex gap-2">
-              <Button onClick={finishExercise} className="flex-1 bg-primary text-primary-foreground font-bold">
-                <Check className="w-4 h-4 mr-1" /> Finish Exercise
+              <Button onClick={finishExercise} className="flex-1 gradient-parent text-white font-bold h-11">
+                Finish Exercise
               </Button>
-              <Button onClick={resetExercise} variant="destructive" size="icon">
+              <Button variant="outline" onClick={resetExercise} className="h-11">
                 <RotateCcw className="w-4 h-4" />
               </Button>
             </div>
           </div>
         )}
 
-        {/* Exercise Selection */}
-        {!isActive && (
-          <>
-            <div className="bg-card rounded-2xl p-4 shadow-card border border-border">
-              <h3 className="font-bold text-foreground mb-3">Select Exercise</h3>
-              {/* Category filter */}
-              <div className="flex gap-1.5 overflow-x-auto mb-3 pb-1">
-                <button
-                  onClick={() => setActiveCategory("All")}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                    activeCategory === "All" ? "gradient-hero text-white" : "bg-muted text-muted-foreground"
-                  }`}
-                >All</button>
-                {CATEGORIES.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                      activeCategory === cat ? "gradient-hero text-white" : "bg-muted text-muted-foreground"
-                    }`}
-                  >{cat}</button>
-                ))}
-              </div>
+        {/* Exercise Category Filter */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                activeCategory === cat
+                  ? "gradient-hero text-white shadow-sm"
+                  : "bg-card border border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
 
-              {/* Exercise list */}
-              <div className="space-y-2">
-                {filtered.map(ex => (
-                  <button
-                    key={ex.id}
-                    onClick={() => startExercise(ex)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
-                      {ex.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-foreground">{ex.name}</div>
-                      <div className="text-xs text-muted-foreground">{ex.targetMuscle}</div>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-primary font-semibold">
-                      <Play className="w-3 h-3" /> Start
-                    </div>
-                  </button>
-                ))}
+        {/* Exercises List */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {filtered.map((ex) => (
+            <div
+              key={ex.id}
+              onClick={() => startExercise(ex)}
+              className="bg-card rounded-2xl p-4 border border-border shadow-sm hover:shadow-card hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col justify-between"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <span className="text-2xl">{ex.icon}</span>
+                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-medium">
+                  {ex.category}
+                </span>
+              </div>
+              <div>
+                <h4 className="font-bold text-foreground text-sm leading-tight">{ex.name}</h4>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{ex.targetMuscle}</p>
+              </div>
+              <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">~{ex.caloriesPer10} cal/10</span>
+                <Play className="w-3.5 h-3.5 text-primary" />
               </div>
             </div>
+          ))}
+        </div>
 
-            {/* Exercise History */}
-            {dayData.logs.length > 0 && (
-              <div className="bg-card rounded-2xl p-5 shadow-card border border-border">
-                <div className="flex items-center gap-3 mb-3">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  <h3 className="font-bold text-foreground">Today's Exercise Log</h3>
-                </div>
-                <div className="space-y-2">
-                  {dayData.logs.map((log, i) => (
-                    <div key={i} className="flex items-center justify-between bg-muted/30 rounded-xl px-3 py-2.5">
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">{log.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {log.sets.length} sets · {log.totalReps} reps · {formatTime(log.duration)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-accent">{log.caloriesBurned} kcal</div>
-                      </div>
+        {/* Today's Completed Logs */}
+        {dayData.logs.length > 0 && (
+          <div className="bg-card rounded-2xl p-5 shadow-card border border-border space-y-3">
+            <h3 className="font-bold text-foreground flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" /> Completed Today
+            </h3>
+            <div className="space-y-2">
+              {dayData.logs.map((log, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border"
+                >
+                  <div>
+                    <div className="font-semibold text-sm text-foreground">{log.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {log.sets.length} sets · {log.totalReps} total reps · {Math.round(log.duration / 60)}m
                     </div>
-                  ))}
+                  </div>
+                  <span className="text-xs font-bold text-accent">+{log.caloriesBurned} kcal</span>
                 </div>
-              </div>
-            )}
-          </>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

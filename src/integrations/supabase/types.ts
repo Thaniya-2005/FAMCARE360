@@ -7,73 +7,593 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      children: {
+      profiles: {
         Row: {
-          age: number | null
-          created_at: string
-          health_details: string | null
           id: string
-          linked_user_id: string | null
-          name: string
-          parent_id: string
+          user_id: string
+          full_name: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          phone: string | null
+          created_at: string
           updated_at: string
         }
         Insert: {
-          age?: number | null
-          created_at?: string
-          health_details?: string | null
           id?: string
-          linked_user_id?: string | null
-          name: string
-          parent_id: string
+          user_id: string
+          full_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          phone?: string | null
+          created_at?: string
           updated_at?: string
         }
         Update: {
-          age?: number | null
-          created_at?: string
-          health_details?: string | null
           id?: string
-          linked_user_id?: string | null
-          name?: string
-          parent_id?: string
+          user_id?: string
+          full_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          phone?: string | null
+          created_at?: string
           updated_at?: string
         }
         Relationships: []
       }
-      profiles: {
+      families: {
         Row: {
-          created_at: string
-          full_name: string | null
           id: string
-          phone: string | null
-          role: Database["public"]["Enums"]["app_role"]
+          name: string
+          invite_code: string
+          created_by: string
+          created_at: string
           updated_at: string
-          user_id: string
         }
         Insert: {
-          created_at?: string
-          full_name?: string | null
           id?: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          name?: string
+          invite_code: string
+          created_by: string
+          created_at?: string
           updated_at?: string
-          user_id: string
         }
         Update: {
-          created_at?: string
-          full_name?: string | null
           id?: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
+          name?: string
+          invite_code?: string
+          created_by?: string
+          created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      family_members: {
+        Row: {
+          id: string
+          family_id: string
+          user_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          relationship: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          family_id: string
+          user_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          relationship?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          family_id?: string
           user_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          relationship?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      children: {
+        Row: {
+          id: string
+          parent_id: string
+          family_id: string | null
+          name: string
+          age: number | null
+          health_details: string | null
+          linked_user_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          parent_id: string
+          family_id?: string | null
+          name: string
+          age?: number | null
+          health_details?: string | null
+          linked_user_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          parent_id?: string
+          family_id?: string | null
+          name?: string
+          age?: number | null
+          health_details?: string | null
+          linked_user_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      health_reports: {
+        Row: {
+          id: string
+          user_id: string
+          family_id: string | null
+          report_date: string
+          heart_rate: number | null
+          temperature: number | null
+          steps_count: number | null
+          distance_km: number | null
+          active_calories: number | null
+          mood_score: number | null
+          stress_level: number | null
+          anxiety_level: number | null
+          emotional_notes: string | null
+          had_social_interactions: boolean | null
+          feeling_lonely: boolean | null
+          outdoor_time_minutes: number | null
+          meals_eaten: number | null
+          ate_breakfast: boolean | null
+          ate_lunch: boolean | null
+          ate_dinner: boolean | null
+          water_intake: number | null
+          caffeine_intake: number | null
+          appetite_good: boolean | null
+          had_fruits_veggies: boolean | null
+          took_vitamins: boolean | null
+          diet_habits_score: number | null
+          sleep_hours: number | null
+          sleep_quality: number | null
+          had_nap: boolean | null
+          wake_up_time: string | null
+          sleep_in_bed_time: string | null
+          deep_sleep_hours: number | null
+          light_sleep_hours: number | null
+          rem_sleep_hours: number | null
+          awake_during_night: number | null
+          felt_rested_after_sleep: boolean | null
+          snoring_concerns: boolean | null
+          mobility_level: number | null
+          exercise_minutes: number | null
+          pain_level: number | null
+          did_physical_therapy: boolean | null
+          did_stretching: boolean | null
+          used_walking_aid: boolean | null
+          medication_taken: boolean | null
+          medication_side_effects: string | null
+          blood_pressure: string | null
+          blood_sugar: string | null
+          cholesterol: string | null
+          diabetes_reading: string | null
+          allergies: string | null
+          felt_safe: boolean | null
+          had_fall: boolean | null
+          needs_help: boolean | null
+          home_hazards: boolean | null
+          used_emergency_contact: boolean | null
+          caregiver_notes: string | null
+          bonding_message: string | null
+          sos_activated: boolean | null
+          lifestyle_score: number | null
+          health_status: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          family_id?: string | null
+          report_date?: string
+          heart_rate?: number | null
+          temperature?: number | null
+          steps_count?: number | null
+          distance_km?: number | null
+          active_calories?: number | null
+          mood_score?: number | null
+          stress_level?: number | null
+          anxiety_level?: number | null
+          emotional_notes?: string | null
+          had_social_interactions?: boolean | null
+          feeling_lonely?: boolean | null
+          outdoor_time_minutes?: number | null
+          meals_eaten?: number | null
+          ate_breakfast?: boolean | null
+          ate_lunch?: boolean | null
+          ate_dinner?: boolean | null
+          water_intake?: number | null
+          caffeine_intake?: number | null
+          appetite_good?: boolean | null
+          had_fruits_veggies?: boolean | null
+          took_vitamins?: boolean | null
+          diet_habits_score?: number | null
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          had_nap?: boolean | null
+          wake_up_time?: string | null
+          sleep_in_bed_time?: string | null
+          deep_sleep_hours?: number | null
+          light_sleep_hours?: number | null
+          rem_sleep_hours?: number | null
+          awake_during_night?: number | null
+          felt_rested_after_sleep?: boolean | null
+          snoring_concerns?: boolean | null
+          mobility_level?: number | null
+          exercise_minutes?: number | null
+          pain_level?: number | null
+          did_physical_therapy?: boolean | null
+          did_stretching?: boolean | null
+          used_walking_aid?: boolean | null
+          medication_taken?: boolean | null
+          medication_side_effects?: string | null
+          blood_pressure?: string | null
+          blood_sugar?: string | null
+          cholesterol?: string | null
+          diabetes_reading?: string | null
+          allergies?: string | null
+          felt_safe?: boolean | null
+          had_fall?: boolean | null
+          needs_help?: boolean | null
+          home_hazards?: boolean | null
+          used_emergency_contact?: boolean | null
+          caregiver_notes?: string | null
+          bonding_message?: string | null
+          sos_activated?: boolean | null
+          lifestyle_score?: number | null
+          health_status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          family_id?: string | null
+          report_date?: string
+          heart_rate?: number | null
+          temperature?: number | null
+          steps_count?: number | null
+          distance_km?: number | null
+          active_calories?: number | null
+          mood_score?: number | null
+          stress_level?: number | null
+          anxiety_level?: number | null
+          emotional_notes?: string | null
+          had_social_interactions?: boolean | null
+          feeling_lonely?: boolean | null
+          outdoor_time_minutes?: number | null
+          meals_eaten?: number | null
+          ate_breakfast?: boolean | null
+          ate_lunch?: boolean | null
+          ate_dinner?: boolean | null
+          water_intake?: number | null
+          caffeine_intake?: number | null
+          appetite_good?: boolean | null
+          had_fruits_veggies?: boolean | null
+          took_vitamins?: boolean | null
+          diet_habits_score?: number | null
+          sleep_hours?: number | null
+          sleep_quality?: number | null
+          had_nap?: boolean | null
+          wake_up_time?: string | null
+          sleep_in_bed_time?: string | null
+          deep_sleep_hours?: number | null
+          light_sleep_hours?: number | null
+          rem_sleep_hours?: number | null
+          awake_during_night?: number | null
+          felt_rested_after_sleep?: boolean | null
+          snoring_concerns?: boolean | null
+          mobility_level?: number | null
+          exercise_minutes?: number | null
+          pain_level?: number | null
+          did_physical_therapy?: boolean | null
+          did_stretching?: boolean | null
+          used_walking_aid?: boolean | null
+          medication_taken?: boolean | null
+          medication_side_effects?: string | null
+          blood_pressure?: string | null
+          blood_sugar?: string | null
+          cholesterol?: string | null
+          diabetes_reading?: string | null
+          allergies?: string | null
+          felt_safe?: boolean | null
+          had_fall?: boolean | null
+          needs_help?: boolean | null
+          home_hazards?: boolean | null
+          used_emergency_contact?: boolean | null
+          caregiver_notes?: string | null
+          bonding_message?: string | null
+          sos_activated?: boolean | null
+          lifestyle_score?: number | null
+          health_status?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vital_signs: {
+        Row: {
+          id: string
+          user_id: string
+          heart_rate: number | null
+          temperature: number | null
+          blood_pressure: string | null
+          blood_sugar: string | null
+          cholesterol: string | null
+          steps_count: number | null
+          recorded_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          heart_rate?: number | null
+          temperature?: number | null
+          blood_pressure?: string | null
+          blood_sugar?: string | null
+          cholesterol?: string | null
+          steps_count?: number | null
+          recorded_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          heart_rate?: number | null
+          temperature?: number | null
+          blood_pressure?: string | null
+          blood_sugar?: string | null
+          cholesterol?: string | null
+          steps_count?: number | null
+          recorded_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      meals: {
+        Row: {
+          id: string
+          user_id: string
+          meal_date: string
+          meal_type: string
+          name: string
+          calories: number
+          protein: number
+          carbs: number
+          fat: number
+          time: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          meal_date?: string
+          meal_type: string
+          name: string
+          calories?: number
+          protein?: number
+          carbs?: number
+          fat?: number
+          time?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          meal_date?: string
+          meal_type?: string
+          name?: string
+          calories?: number
+          protein?: number
+          carbs?: number
+          fat?: number
+          time?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      exercises: {
+        Row: {
+          id: string
+          user_id: string
+          exercise_date: string
+          exercise_id: string
+          name: string
+          sets: Json
+          total_reps: number
+          calories_burned: number
+          duration: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          exercise_date?: string
+          exercise_id: string
+          name: string
+          sets?: Json
+          total_reps?: number
+          calories_burned?: number
+          duration?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          exercise_date?: string
+          exercise_id?: string
+          name?: string
+          sets?: Json
+          total_reps?: number
+          calories_burned?: number
+          duration?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      medications: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          dose: string
+          time: string
+          frequency: string
+          taken: boolean
+          refill_needed: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          dose: string
+          time: string
+          frequency?: string
+          taken?: boolean
+          refill_needed?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          dose?: string
+          time?: string
+          frequency?: string
+          taken?: boolean
+          refill_needed?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      appointments: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          doctor: string
+          date: string
+          time: string | null
+          notes: string | null
+          completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          doctor: string
+          date: string
+          time?: string | null
+          notes?: string | null
+          completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          doctor?: string
+          date?: string
+          time?: string | null
+          notes?: string | null
+          completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sos_alerts: {
+        Row: {
+          id: string
+          user_id: string
+          family_id: string | null
+          status: string
+          notes: string | null
+          vital_snapshot: Json | null
+          resolved_at: string | null
+          resolved_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          family_id?: string | null
+          status?: string
+          notes?: string | null
+          vital_snapshot?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          family_id?: string | null
+          status?: string
+          notes?: string | null
+          vital_snapshot?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          read: boolean
+          link: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message: string
+          type?: string
+          read?: boolean
+          link?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string
+          type?: string
+          read?: boolean
+          link?: string | null
+          created_at?: string
         }
         Relationships: []
       }
@@ -82,7 +602,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_family_member: {
+        Args: {
+          target_user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "parent" | "child"
@@ -94,7 +619,6 @@ export type Database = {
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
@@ -191,23 +715,6 @@ export type Enums<
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
