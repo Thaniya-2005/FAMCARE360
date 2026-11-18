@@ -102,16 +102,29 @@ const Login = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Helper to ensure redirect path belongs to the authenticated user's role
+  const getSafeDestination = (fromPath: string | undefined, userRole: "parent" | "child"): string => {
+    if (!fromPath || fromPath === "/" || fromPath === "/login") {
+      return userRole === "parent" ? "/parent" : "/child";
+    }
+    // Prevent Child from being redirected to Parent routes
+    if (userRole === "child" && fromPath.startsWith("/parent")) {
+      return "/child";
+    }
+    // Prevent Parent from being redirected to Child routes
+    if (userRole === "parent" && fromPath.startsWith("/child")) {
+      return "/parent";
+    }
+    return fromPath;
+  };
+
   // 1. Auto-redirect if already authenticated
   useEffect(() => {
     if (!authLoading && user) {
       const targetRole = profile?.role || (user.user_metadata?.role as "parent" | "child") || "parent";
       const fromPath = (location.state as { from?: { pathname?: string } })?.from?.pathname;
-      if (fromPath && fromPath !== "/login") {
-        navigate(fromPath, { replace: true });
-      } else {
-        navigate(targetRole === "parent" ? "/parent" : "/child", { replace: true });
-      }
+      const destination = getSafeDestination(fromPath, targetRole);
+      navigate(destination, { replace: true });
     }
   }, [user, profile, authLoading, navigate, location.state]);
 
@@ -250,13 +263,10 @@ const Login = () => {
           description: `Logged in as ${actualRole}.`,
         });
 
-        // Redirect to originating destination or assigned dashboard
+        // Redirect to originating destination or assigned dashboard (strictly role-safe)
         const fromPath = (location.state as { from?: { pathname?: string } })?.from?.pathname;
-        if (fromPath && fromPath !== "/login") {
-          navigate(fromPath);
-        } else {
-          navigate(actualRole === "parent" ? "/parent" : "/child");
-        }
+        const destination = getSafeDestination(fromPath, actualRole);
+        navigate(destination, { replace: true });
       }
     } catch (err: unknown) {
       const message = formatAuthError(err, isSignup ? "Signup failed" : "Login failed");

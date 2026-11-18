@@ -43,7 +43,10 @@ const Index = () => {
           {user ? (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate(profile?.role === "child" ? "/child" : "/parent")}
+                onClick={() => {
+                  const role = profile?.role || (user?.user_metadata?.role as "parent" | "child" | undefined);
+                  navigate(role === "child" ? "/child" : "/parent");
+                }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
               >
                 Dashboard

@@ -52,7 +52,7 @@ const App = () => (
             <Route
               path="/profile"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["parent", "child"]}>
                   <ProfileSettings />
                 </ProtectedRoute>
               }

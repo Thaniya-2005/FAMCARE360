@@ -1,8 +1,10 @@
 import React, { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { ParentHeader } from "./ParentHeader";
 import { ParentBottomNav } from "./ParentBottomNav";
 import { EmergencySOSDialog } from "./EmergencySOSDialog";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ParentLayoutProps {
   children: React.ReactNode;
@@ -12,6 +14,12 @@ interface ParentLayoutProps {
 export const ParentLayout: React.FC<ParentLayoutProps> = ({ children, title }) => {
   const [isSOSOpen, setIsSOSOpen] = useState(false);
   const { unreadCount } = useNotifications();
+  const { user, profile } = useAuth();
+
+  const userRole = (profile?.role || user?.user_metadata?.role) as "parent" | "child" | undefined;
+  if (userRole === "child") {
+    return <Navigate to="/child" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#EEF2F6] dark:bg-[#070D14] flex justify-center items-start antialiased selection:bg-[#159FA6]/20">

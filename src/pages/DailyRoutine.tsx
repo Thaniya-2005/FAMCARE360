@@ -49,7 +49,8 @@ const statusDotColors = {
 
 const DailyRoutine = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const userRole = (profile?.role || user?.user_metadata?.role) as "parent" | "child" | undefined;
   const [data, setData] = useState<HealthData | null>(null);
   const [mealData, setMealData] = useState<DayMeals | null>(null);
   const [exerciseData, setExerciseData] = useState<DayExercises | null>(null);
@@ -333,10 +334,10 @@ const DailyRoutine = () => {
               Submit a health report from the Parent Dashboard to see your daily routine visualization.
             </p>
             <button
-              onClick={() => navigate("/parent")}
+              onClick={() => navigate(userRole === "child" ? "/child" : "/parent")}
               className="px-4 py-2 gradient-parent text-white rounded-xl text-sm font-semibold"
             >
-              Go to Parent Dashboard
+              Go to {userRole === "child" ? "Child Dashboard" : "Parent Dashboard"}
             </button>
           </div>
         ) : (
